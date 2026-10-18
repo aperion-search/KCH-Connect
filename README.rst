@@ -1,7 +1,4 @@
-----
-
 .. figure:: https://raw.githubusercontent.com/aperion-search/KCH-Connect/refs/heads/main/logo/6179493779375591444_121.jpg
-   :target: 
    :alt: KCH-Logo
    :width: 100%
    :align: center
@@ -21,44 +18,46 @@ requests, event photo galleries, and reliable cloud synchronization with
 Features
 --------
 
--  **Role-Based Access Control**:
+- **Role-Based Access Control**:
 
-   -  **Admin**: Full control over students, teachers, classes
-      assignment, attendance, leave approvals/rejections, and media
-      galleries.
-   -  **Teachers**: View and mark attendance and view leave requests for
-      their assigned classes.
-   -  **Parents / Students**: View student profile details, attendance
-      history, and submit leave requests.
+  - **Admin**: Full control over students, teachers, classes
+    assignment, attendance, leave approvals/rejections, and media
+    galleries.
+  - **Teachers**: View and mark attendance and view leave requests for
+    their assigned classes.
+  - **Parents / Students**: View student profile details, attendance
+    history, and submit leave requests.
 
--  **Mega Cloud Storage Sync**: Automatic backup and syncing of JSON
-   data (``KCH_Connect_Backups``) and media files
-   (``KCH_Connect_Media``) using ``megajs``.
--  **Attendance & Leave Management**:
+- **Mega Cloud Storage Sync**: Automatic backup and syncing of JSON
+  data (``KCH_Connect_Backups``) and media files
+  (``KCH_Connect_Media``) using ``megajs``.
 
-   -  Daily Present, Absent, and Leave tracking with WhatsApp messaging
-      and direct phone call (``tel:``) buttons.
-   -  Monthly attendance grid export to Excel (``.xls`` format with
-      proper date cell formatting).
+- **Attendance & Leave Management**:
 
--  **Gallery & Media Uploads**: Event photo gallery with multi-folder
-   support, local storage, and Mega cloud sync.
--  **Mobile Responsive**: Fully responsive UI built with Tailwind CSS,
-   custom Arabic typography (``Kanz-al-Marjaan``), and FontAwesome
-   icons.
+  - Daily Present, Absent, and Leave tracking with WhatsApp messaging
+    and direct phone call (``tel:``) buttons.
+  - Monthly attendance grid export to Excel (``.xls`` format with
+    proper date cell formatting).
+
+- **Gallery & Media Uploads**: Event photo gallery with multi-folder
+  support, local storage, and Mega cloud sync.
+
+- **Mobile Responsive**: Fully responsive UI built with Tailwind CSS,
+  custom Arabic typography (``Kanz-al-Marjaan``), and FontAwesome
+  icons.
 
 --------------
 
 Project Structure
 -----------------
 
--  ``server.js`` — Node.js / Express backend server with atomic JSON
-   reads/writes, 50MB payload limits, and startup cloud synchronization.
--  ``sync.js`` — Mega cloud storage integration (``megajs``).
--  ``frontend/`` — React single-page application (Vite + Tailwind CSS).
--  ``data/`` — Local JSON store (synchronized with Mega cloud storage).
--  ``public/uploads/`` — Local media storage (synchronized with Mega
-   cloud storage).
+- ``server.js`` — Node.js / Express backend server with atomic JSON
+  reads/writes, 50MB payload limits, and startup cloud synchronization.
+- ``sync.js`` — Mega cloud storage integration (``megajs``).
+- ``frontend/`` — React single-page application (Vite + Tailwind CSS).
+- ``data/`` — Local JSON store (synchronized with Mega cloud storage).
+- ``public/uploads/`` — Local media storage (synchronized with Mega
+  cloud storage).
 
 --------------
 
@@ -68,8 +67,8 @@ Getting Started
 Prerequisites
 ~~~~~~~~~~~~~
 
--  Node.js (v18 or higher recommended)
--  npm
+- Node.js (v18 or higher recommended)
+- npm
 
 Installation & Setup
 ~~~~~~~~~~~~~~~~~~~~
@@ -98,7 +97,7 @@ Installation & Setup
 4. **Configure Environment Variables**: Create a ``.env`` file in the
    root directory:
 
-   .. code:: env
+   .. code:: text
 
       PORT=3000
       MEGA_EMAIL=your-mega-email@gmail.com
@@ -126,7 +125,3 @@ License
 -------
 
 This project is licensed under the MIT License.
-
-🤖 Generated with `Claude Code <https://claude.com/claude-code>`__
-Co-Authored-By: Claude Code noreply@anthropic.com #   K C H - C o n n e c t    # 
- K C H - C o n n e c t    
