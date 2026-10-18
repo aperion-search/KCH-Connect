@@ -1,3 +1,13 @@
+----
+
+.. figure:: https://raw.githubusercontent.com/aperion-search/KCH-Connect/refs/heads/main/logo/6179493779375591444_121.jpg
+   :target: 
+   :alt: KCH-Logo
+   :width: 100%
+   :align: center
+
+----
+
 KCH Connect
 ===========
 
