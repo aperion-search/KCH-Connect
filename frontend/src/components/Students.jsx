@@ -22,8 +22,23 @@ export default function Students() {
   }, [currentUser, students, teachers]);
 
   // Sort students by grade
+  const gradeOrder = { '9': 1, '8': 2, '7': 3, '6': 4, '5': 5, '4': 6, '3': 7, '2': 8, '1': 9, 'ATFAAL': 10 };
   const sortedStudents = useMemo(() => {
-    return [...baseStudents].sort((a, b) => (a.grade || '').localeCompare(b.grade || ''));
+    return [...baseStudents].sort((a, b) => {
+      const gA = gradeOrder[String(a.grade || '').trim().toUpperCase()] || 99;
+      const gB = gradeOrder[String(b.grade || '').trim().toUpperCase()] || 99;
+      if (gA !== gB) return gA - gB;
+
+      const isMale = (g) => {
+        const s = String(g || '').trim().toUpperCase();
+        return s === 'M' || s === 'MALE';
+      };
+      const maleA = isMale(a.gender) ? 0 : 1;
+      const maleB = isMale(b.gender) ? 0 : 1;
+      if (maleA !== maleB) return maleA - maleB;
+
+      return (a.name || '').localeCompare(b.name || '');
+    });
   }, [baseStudents]);
 
   // Filter students based on class, search, and user role

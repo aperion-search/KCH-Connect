@@ -169,6 +169,26 @@ export default function Dashboard() {
                   <p className="text-base text-gray-600 font-bold" style={{fontFamily:'"Kanz-al-Marjaan", serif'}}>{student.arabicName || '-'}</p>
                   <p className="text-sm text-gray-500">Class {student.grade} • Absent</p>
                 </div>
+                {student.phone && student.phone !== '-' && currentUser?.role !== 'parent' && (
+                  <div className="flex items-center gap-1.5">
+                    <a
+                      href={`tel:${student.phone}`}
+                      className="px-2.5 py-1 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 flex items-center gap-1 shadow-sm"
+                      title="Call Parent"
+                    >
+                      <i className="fa-solid fa-phone"></i> Call
+                    </a>
+                    <a
+                      href={`https://wa.me/91${student.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`📋 ABSENTEE NOTICE\n\nDear Parents,\n\nYour ward, ${student.name} (${student.grade || 'Class'}), was marked absent on ${currentDate} without prior intimation.\n\nKindly submit a leave request here: https://kch-connect.onrender.com/\n\nKindly ensure your child attends school tomorrow with all pending work completed.\n\nRegards,\nMadrasa Wajihiyah Khachroad (Sender: +91 7737252833)`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex items-center gap-1 shadow-sm"
+                      title="Send WhatsApp Message"
+                    >
+                      <i className="fa-brands fa-whatsapp"></i> WhatsApp
+                    </a>
+                  </div>
+                )}
               </li>
             ))
           ) : (

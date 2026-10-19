@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import axios from 'axios';
 
@@ -51,16 +51,36 @@ export default function Attendance() {
 
   const gradesList = ['All', '9', '8', '7', '6', '5', '4', '3', '2', '1', 'ATFAAL'];
 
+  const gradeOrder = { '9': 1, '8': 2, '7': 3, '6': 4, '5': 5, '4': 6, '3': 7, '2': 8, '1': 9, 'ATFAAL': 10 };
+
   // Filter students based on role and selected grade
-  const filteredStudents = students.filter(s => {
-    if (currentUser?.role === 'parent') {
-      return String(s.rollId) === String(currentUser.studentId) || String(s.id) === String(currentUser.studentId);
-    }
-    if (selectedGrade !== 'All' && String(s.grade).trim() !== String(selectedGrade)) {
-      return false;
-    }
-    return true;
-  });
+  const filteredStudents = useMemo(() => {
+    const list = students.filter(s => {
+      if (currentUser?.role === 'parent') {
+        return String(s.rollId) === String(currentUser.studentId) || String(s.id) === String(currentUser.studentId);
+      }
+      if (selectedGrade !== 'All' && String(s.grade).trim() !== String(selectedGrade)) {
+        return false;
+      }
+      return true;
+    });
+
+    return [...list].sort((a, b) => {
+      const gA = gradeOrder[String(a.grade || '').trim().toUpperCase()] || 99;
+      const gB = gradeOrder[String(b.grade || '').trim().toUpperCase()] || 99;
+      if (gA !== gB) return gA - gB;
+
+      const isMale = (g) => {
+        const s = String(g || '').trim().toUpperCase();
+        return s === 'M' || s === 'MALE';
+      };
+      const maleA = isMale(a.gender) ? 0 : 1;
+      const maleB = isMale(b.gender) ? 0 : 1;
+      if (maleA !== maleB) return maleA - maleB;
+
+      return (a.name || '').localeCompare(b.name || '');
+    });
+  }, [students, currentUser, selectedGrade]);
 
   const currentDateAttendance = attendanceData[date] || {};
 
