@@ -1,8 +1,26 @@
 require('dotenv').config();
+const { spawn } = require('child_process');
+const path = require('path');
+
+// If running on Windows host and not inside WSL, automatically shift execution to WSL
+if (process.platform === 'win32' && !process.env.WSL_DISTRO_NAME) {
+    const scriptPath = path.resolve(process.argv[1]);
+    const wslPath = scriptPath.replace(/^([A-Z]):/i, (match, p1) => `/mnt/${p1.toLowerCase()}`).replace(/\\/g, '/');
+
+    console.log(`[WSL Shift] Windows host detected. Shifting execution to WSL environment (${wslPath})...`);
+    const wslProcess = spawn('wsl', ['node', wslPath, ...process.argv.slice(2)], {
+        stdio: 'inherit',
+        shell: true
+    });
+    wslProcess.on('exit', (code) => {
+        process.exit(code);
+    });
+    return;
+}
+
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
-const path = require('path');
 const { exec } = require('child_process');
 const util = require('util');
 const execAsync = util.promisify(exec);
