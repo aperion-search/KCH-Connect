@@ -233,7 +233,6 @@ app.delete('/api/teachers/:id', (req, res) => {
 });
 
 // --- Email Notification Setup ---
-const nodemailer = require('nodemailer');
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
