@@ -51,6 +51,7 @@ export default function Profile() {
       showToast('Profile photo removed successfully!');
     }
   };
+  const handlePhotoChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
