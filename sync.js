@@ -8,25 +8,28 @@ function hasValidMegaCredentials() {
     return true;
 }
 
-async function syncData(type, data) {
-    if (!hasValidMegaCredentials()) return;
+// Helper to initialize and wait for storage ready
+async function getMegaStorage() {
     const megaEmail = process.env.MEGA_EMAIL;
     const megaPassword = process.env.MEGA_PASSWORD;
+    const storage = new Storage({ email: megaEmail, password: megaPassword });
+    storage.on('error', () => {
+        // Suppress storage error events
+    });
 
+    await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('Mega connection timeout')), 15000);
+        storage.on('ready', () => { clearTimeout(timeout); resolve(); });
+        storage.on('error', (err) => { clearTimeout(timeout); reject(err); });
+    });
+    return storage;
+}
+
+async function syncData(type, data) {
+    if (!hasValidMegaCredentials()) return;
     try {
-        const storage = new Storage({ email: megaEmail, password: megaPassword });
-        storage.on('error', (err) => {
-            // Suppress storage error events
-        });
-
-        await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error('Mega connection timeout')), 15000);
-            storage.on('ready', () => { clearTimeout(timeout); resolve(); });
-            storage.on('error', (err) => { clearTimeout(timeout); reject(err); });
-        });
-
-        const rootFiles = storage.files || (storage.root && storage.root.children) || [];
-        const filesArray = Array.isArray(rootFiles) ? rootFiles : Object.values(rootFiles);
+        const storage = await getMegaStorage();
+        const filesArray = storage.files || [];
         let backupFolder = filesArray.find(f => f.name === 'KCH_Connect_Backups' && f.directory);
 
         if (!backupFolder) {
@@ -42,10 +45,9 @@ async function syncData(type, data) {
         const fileContent = JSON.stringify(data, null, 2);
         const buffer = Buffer.from(fileContent, 'utf8');
 
-        const children = backupFolder.children || (backupFolder.files && Object.values(backupFolder.files)) || [];
-        const childrenArray = Array.isArray(children) ? children : Object.values(children);
-
-        for (const file of childrenArray.filter(f => f.name === fileName)) {
+        // Delete existing file with same name if present in storage
+        const existingFiles = (storage.files || []).filter(f => !f.directory && f.name === fileName);
+        for (const file of existingFiles) {
             await new Promise((resolve) => file.delete(() => resolve()));
         }
 
@@ -63,29 +65,10 @@ async function syncData(type, data) {
 
 async function loadDataFromMega(type) {
     if (!hasValidMegaCredentials()) return null;
-    const megaEmail = process.env.MEGA_EMAIL;
-    const megaPassword = process.env.MEGA_PASSWORD;
-
     try {
-        const storage = new Storage({ email: megaEmail, password: megaPassword });
-        storage.on('error', (err) => {
-            // Suppress unhandled storage error events
-        });
-
-        await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error('Mega connection timeout')), 15000);
-            storage.on('ready', () => { clearTimeout(timeout); resolve(); });
-            storage.on('error', (err) => { clearTimeout(timeout); reject(err); });
-        });
-
-        const rootFiles = storage.files || (storage.root && storage.root.children) || [];
-        const filesArray = Array.isArray(rootFiles) ? rootFiles : Object.values(rootFiles);
-        let backupFolder = filesArray.find(f => f.name === 'KCH_Connect_Backups' && f.directory);
-        if (!backupFolder) return null;
-
-        const children = backupFolder.children || (backupFolder.files && Object.values(backupFolder.files)) || [];
-        const childrenArray = Array.isArray(children) ? children : Object.values(children);
-        const targetFile = childrenArray.find(f => f.name === `${type}.json`);
+        const storage = await getMegaStorage();
+        const filesArray = storage.files || [];
+        const targetFile = filesArray.find(f => !f.directory && f.name === `${type}.json`);
         if (!targetFile) return null;
 
         const dataBuffer = await new Promise((resolve, reject) => {
@@ -108,21 +91,9 @@ async function loadDataFromMega(type) {
 
 async function syncMediaToMega(filename, buffer) {
     if (!hasValidMegaCredentials()) return;
-    const megaEmail = process.env.MEGA_EMAIL;
-    const megaPassword = process.env.MEGA_PASSWORD;
-
     try {
-        const storage = new Storage({ email: megaEmail, password: megaPassword });
-        storage.on('error', () => {});
-
-        await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error('Mega connection timeout')), 15000);
-            storage.on('ready', () => { clearTimeout(timeout); resolve(); });
-            storage.on('error', (err) => { clearTimeout(timeout); reject(err); });
-        });
-
-        const rootFiles = storage.files || (storage.root && storage.root.children) || [];
-        const filesArray = Array.isArray(rootFiles) ? rootFiles : Object.values(rootFiles);
+        const storage = await getMegaStorage();
+        const filesArray = storage.files || [];
         let mediaFolder = filesArray.find(f => f.name === 'KCH_Connect_Media' && f.directory);
 
         if (!mediaFolder) {
@@ -134,10 +105,9 @@ async function syncMediaToMega(filename, buffer) {
             });
         }
 
-        const children = mediaFolder.children || (mediaFolder.files && Object.values(mediaFolder.files)) || [];
-        const childrenArray = Array.isArray(children) ? children : Object.values(children);
-
-        for (const file of childrenArray.filter(f => f.name === filename)) {
+        // Delete existing media file with same filename anywhere in storage
+        const existingFiles = (storage.files || []).filter(f => !f.directory && f.name === filename);
+        for (const file of existingFiles) {
             await new Promise((resolve) => file.delete(() => resolve()));
         }
 
@@ -147,6 +117,7 @@ async function syncMediaToMega(filename, buffer) {
                 else resolve(file);
             });
         });
+        console.log(`[SYNC - Mega] Successfully uploaded media ${filename} to Mega.`);
     } catch (e) {
         console.error(`[SYNC - Mega] Media sync error:`, e.message);
     }
@@ -154,28 +125,13 @@ async function syncMediaToMega(filename, buffer) {
 
 async function deleteMediaFromMega(filename) {
     if (!hasValidMegaCredentials()) return;
-    const megaEmail = process.env.MEGA_EMAIL;
-    const megaPassword = process.env.MEGA_PASSWORD;
-
     try {
-        const storage = new Storage({ email: megaEmail, password: megaPassword });
-        storage.on('error', () => {});
-
-        await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error('Mega connection timeout')), 15000);
-            storage.on('ready', () => { clearTimeout(timeout); resolve(); });
-            storage.on('error', (err) => { clearTimeout(timeout); reject(err); });
-        });
-
-        const rootFiles = storage.files || (storage.root && storage.root.children) || [];
-        const filesArray = Array.isArray(rootFiles) ? rootFiles : Object.values(rootFiles);
-        const mediaFolder = filesArray.find(f => f.name === 'KCH_Connect_Media' && f.directory);
-        if (mediaFolder) {
-            const children = mediaFolder.children || (mediaFolder.files && Object.values(mediaFolder.files)) || [];
-            const childrenArray = Array.isArray(children) ? children : Object.values(children);
-            for (const file of childrenArray.filter(f => f.name === filename)) {
-                await new Promise((resolve) => file.delete(() => resolve()));
-            }
+        const storage = await getMegaStorage();
+        const filesArray = storage.files || [];
+        const existingFiles = filesArray.filter(f => !f.directory && f.name === filename);
+        for (const file of existingFiles) {
+            await new Promise((resolve) => file.delete(() => resolve()));
+            console.log(`[SYNC - Mega] Successfully deleted media ${filename} from Mega.`);
         }
     } catch (e) {
         console.error(`[SYNC - Mega] Media delete error:`, e.message);
@@ -184,21 +140,9 @@ async function deleteMediaFromMega(filename) {
 
 async function createMegaFolder(folderName) {
     if (!hasValidMegaCredentials()) return;
-    const megaEmail = process.env.MEGA_EMAIL;
-    const megaPassword = process.env.MEGA_PASSWORD;
-
     try {
-        const storage = new Storage({ email: megaEmail, password: megaPassword });
-        storage.on('error', () => {});
-
-        await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error('Mega connection timeout')), 15000);
-            storage.on('ready', () => { clearTimeout(timeout); resolve(); });
-            storage.on('error', (err) => { clearTimeout(timeout); reject(err); });
-        });
-
-        const rootFiles = storage.files || (storage.root && storage.root.children) || [];
-        const filesArray = Array.isArray(rootFiles) ? rootFiles : Object.values(rootFiles);
+        const storage = await getMegaStorage();
+        const filesArray = storage.files || [];
         let mediaFolder = filesArray.find(f => f.name === 'KCH_Connect_Media' && f.directory);
 
         if (!mediaFolder) {
@@ -210,11 +154,8 @@ async function createMegaFolder(folderName) {
             });
         }
 
-        const children = mediaFolder.children || (mediaFolder.files && Object.values(mediaFolder.files)) || [];
-        const childrenArray = Array.isArray(children) ? children : Object.values(children);
-        let subFolder = childrenArray.find(f => f.name === folderName && f.directory);
-
-        if (!subFolder) {
+        const subFolders = (storage.files || []).filter(f => f.directory && f.name === folderName);
+        if (subFolders.length === 0) {
             await new Promise((resolve, reject) => {
                 mediaFolder.mkdir(folderName, (err, folder) => {
                     if (err) reject(err);
