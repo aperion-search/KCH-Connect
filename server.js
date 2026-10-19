@@ -8,9 +8,8 @@ if (process.platform === 'win32' && !process.env.WSL_DISTRO_NAME) {
     const wslPath = scriptPath.replace(/^([A-Z]):/i, (match, p1) => `/mnt/${p1.toLowerCase()}`).replace(/\\/g, '/');
 
     console.log(`[WSL Shift] Windows host detected. Shifting execution to WSL environment (${wslPath})...`);
-    const wslProcess = spawn('wsl', ['node', wslPath, ...process.argv.slice(2)], {
-        stdio: 'inherit',
-        shell: true
+    const wslProcess = spawn('wsl', ['bash', '-lc', `node "${wslPath}" ${process.argv.slice(2).join(' ')}`], {
+        stdio: 'inherit'
     });
     wslProcess.on('exit', (code) => {
         process.exit(code);
