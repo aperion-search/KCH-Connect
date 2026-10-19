@@ -288,8 +288,7 @@ const emailTransporter = nodemailer.createTransport({
 });
 
 async function sendAbsentEmail(student, date) {
-    const recipient = student.email || student.parentEmail;
-    if (!recipient) return;
+    const recipient = student.email || student.parentEmail || 'kchmwajihiyah@gmail.com';
     try {
         await emailTransporter.sendMail({
             from: '"Madrasa Wajihiyah Khachroad" <kchmwajihiyah@gmail.com>',
@@ -377,7 +376,9 @@ app.post('/api/attendance', (req, res) => {
                     absentList.push({
                         phone: student.phone,
                         name: student.name,
-                        grade: student.grade || 'N/A'
+                        grade: student.grade || 'N/A',
+                        email: student.email,
+                        parentEmail: student.parentEmail
                     });
                 }
             }
