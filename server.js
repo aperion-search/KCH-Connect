@@ -3,6 +3,9 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const { exec } = require('child_process');
+const util = require('util');
+const execAsync = util.promisify(exec);
 const { syncData, loadDataFromMega, syncMediaToMega, deleteMediaFromMega } = require('./sync');
 
 const app = express();
@@ -31,6 +34,7 @@ const TEACHERS_FILE = path.join(DATA_DIR, 'teachers.json');
 const ATTENDANCE_FILE = path.join(DATA_DIR, 'attendance.json');
 const LEAVES_FILE = path.join(DATA_DIR, 'leaves.json');
 const GALLERY_FILE = path.join(DATA_DIR, 'gallery.json');
+const ANNOUNCEMENTS_FILE = path.join(DATA_DIR, 'announcements.json');
 
 // Helper to read JSON file safely
 function readJSON(file, defaultVal = null) {
@@ -57,6 +61,60 @@ function writeJSON(file, data) {
         return false;
     }
 }
+
+// --- Startup HF Bucket Initialization ---
+async function initializeDataFromHF() {
+    // Automatically mount HF bucket when running locally (WSL / non-Render)
+    if (!process.env.RENDER) {
+        console.log(`[STARTUP] Local environment detected (not Render). Attempting automatic HF Bucket mount...`);
+        try {
+            const token = process.env.HF_TOKEN || process.env.HUGGINGFACE_TOKEN;
+            if (token) {
+                await execAsync(`huggingface-cli mount KCH-Wajihiyah/KCH-M-connect ./data --repo-type dataset`, { timeout: 10000 });
+                console.log(`[STARTUP] Successfully mounted HF Bucket to ./data via huggingface-cli.`);
+            } else {
+                console.log(`[STARTUP] HF_TOKEN not set, skipping automatic mount attempt.`);
+            }
+        } catch (mountErr) {
+            console.log(`[STARTUP] Automatic HF mount note: ${mountErr.message}. Falling back to standard REST API sync/restore.`);
+        }
+    } else {
+        console.log(`[STARTUP] Render environment detected. Skipping WSL/local mount, using REST API sync.`);
+    }
+
+    const dataTypes = [
+        { type: 'students', file: STUDENTS_FILE, defaultVal: [] },
+        { type: 'teachers', file: TEACHERS_FILE, defaultVal: [] },
+        { type: 'attendance', file: ATTENDANCE_FILE, defaultVal: {} },
+        { type: 'leaves', file: LEAVES_FILE, defaultVal: [] },
+        { type: 'gallery', file: GALLERY_FILE, defaultVal: [{ id: 1, name: 'Madrasa Events 2026', date: '2026-01-01', items: [] }] },
+        { type: 'announcements', file: ANNOUNCEMENTS_FILE, defaultVal: [] }
+    ];
+
+    console.log(`[STARTUP] Checking local data files against Hugging Face Bucket...`);
+    for (const item of dataTypes) {
+        const exists = fs.existsSync(item.file);
+        const content = exists ? fs.readFileSync(item.file, 'utf8').trim() : '';
+        if (!exists || !content) {
+            console.log(`[STARTUP] Local ${item.type}.json missing or empty. Fetching from HF Bucket...`);
+            const cloudData = await loadDataFromMega(item.type);
+            if (cloudData !== null && cloudData !== undefined) {
+                writeJSON(item.file, cloudData);
+                console.log(`[STARTUP] Successfully restored ${item.type}.json from HF Bucket.`);
+            } else {
+                console.log(`[STARTUP] No cloud backup found for ${item.type}. Initializing with default values.`);
+                writeJSON(item.file, item.defaultVal);
+            }
+        } else {
+            console.log(`[STARTUP] Local ${item.type}.json verified.`);
+        }
+    }
+}
+
+// Run startup sync in background
+initializeDataFromHF().catch(err => {
+    console.error(`[STARTUP] Error during HF Bucket initialization sync:`, err.message);
+});
 
 // ---------------- API ROUTES ----------------
 
@@ -357,6 +415,31 @@ app.delete('/api/upload/:filename', (req, res) => {
     }
 });
 
+// --- File Download Routes ---
+app.get('/api/download/data/:type', (req, res) => {
+    const { type } = req.params;
+    const allowedTypes = ['students', 'teachers', 'attendance', 'leaves', 'gallery', 'announcements'];
+    if (!allowedTypes.includes(type)) {
+        return res.status(400).json({ error: 'Invalid data type.' });
+    }
+    const filePath = path.join(DATA_DIR, `${type}.json`);
+    if (fs.existsSync(filePath)) {
+        res.download(filePath, `${type}_backup.json`);
+    } else {
+        res.status(404).json({ error: 'Data file not found.' });
+    }
+});
+
+app.get('/api/download/upload/:filename', (req, res) => {
+    const { filename } = req.params;
+    const filePath = path.join(UPLOAD_DIR, filename);
+    if (fs.existsSync(filePath)) {
+        res.download(filePath);
+    } else {
+        res.status(404).json({ data: null, error: 'Media file not found.' });
+    }
+});
+
 // --- Gallery Routes ---
 app.get('/api/gallery', (req, res) => {
     const gallery = readJSON(GALLERY_FILE, [
@@ -379,6 +462,44 @@ app.post('/api/gallery', (req, res) => {
     }
 });
 
+// --- Announcements Routes ---
+app.get('/api/announcements', (req, res) => {
+    const announcements = readJSON(ANNOUNCEMENTS_FILE, []);
+    res.json(announcements);
+});
+
+app.post('/api/announcements', (req, res) => {
+    const announcements = readJSON(ANNOUNCEMENTS_FILE, []);
+    const newAnnouncement = {
+        id: Date.now(),
+        title: req.body.title || '',
+        message: req.body.message || '',
+        date: req.body.date || new Date().toISOString().split('T')[0],
+        author: req.body.author || 'Admin',
+        mediaUrl: req.body.mediaUrl || null,
+        mediaType: req.body.mediaType || null
+    };
+    announcements.unshift(newAnnouncement);
+    if (writeJSON(ANNOUNCEMENTS_FILE, announcements)) {
+        syncData('announcements', announcements);
+        res.status(201).json({ success: true, announcement: newAnnouncement });
+    } else {
+        res.status(500).json({ error: 'Failed to post announcement.' });
+    }
+});
+
+app.delete('/api/announcements/:id', (req, res) => {
+    const { id } = req.params;
+    let announcements = readJSON(ANNOUNCEMENTS_FILE, []);
+    const filtered = announcements.filter(a => String(a.id) !== String(id));
+    if (writeJSON(ANNOUNCEMENTS_FILE, filtered)) {
+        syncData('announcements', filtered);
+        res.json({ success: true, message: 'Announcement deleted.' });
+    } else {
+        res.status(500).json({ error: 'Failed to delete announcement.' });
+    }
+});
+
 // Fallback for any path that doesn't match API routes
 app.get('/:catchall', (req, res) => {
     const reactIndex = path.join(__dirname, 'frontend', 'dist', 'index.html');
@@ -390,7 +511,7 @@ app.get('/:catchall', (req, res) => {
 });
 
 async function startServer() {
-    const types = ['students', 'teachers', 'attendance', 'leaves', 'gallery'];
+    const types = ['students', 'teachers', 'attendance', 'leaves', 'gallery', 'announcements'];
     for (const type of types) {
         const filePath = path.join(DATA_DIR, `${type}.json`);
         const megaData = await loadDataFromMega(type);
