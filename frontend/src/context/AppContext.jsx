@@ -86,9 +86,10 @@ export const AppProvider = ({ children }) => {
     }
 
     // 3. Parent / Student
-    const student = students.find(s => s.rollId === cleanId);
-    if (student && cleanPass === '515253') {
-      const user = { role: 'parent', name: student.name, studentId: student.rollId, details: student };
+    const student = students.find(s => s.rollId === cleanId || String(s.id) === cleanId);
+    const expectedPass = student?.password || '515253';
+    if (student && cleanPass === expectedPass) {
+      const user = { role: 'parent', name: student.name, studentId: student.rollId || student.id, details: student };
       setCurrentUser(user);
       if (remember) {
         localStorage.setItem('saved_login_id', cleanId);
