@@ -25,11 +25,16 @@ async function getMegaStorage() {
     return storage;
 }
 
+function getFilesArray(storage) {
+    const rawFiles = storage.files || (storage.root && storage.root.children) || [];
+    return Array.isArray(rawFiles) ? rawFiles : Object.values(rawFiles);
+}
+
 async function syncData(type, data) {
     if (!hasValidMegaCredentials()) return;
     try {
         const storage = await getMegaStorage();
-        const filesArray = storage.files || [];
+        const filesArray = getFilesArray(storage);
         let backupFolder = filesArray.find(f => f.name === 'KCH_Connect_Backups' && f.directory);
 
         if (!backupFolder) {
@@ -46,7 +51,7 @@ async function syncData(type, data) {
         const buffer = Buffer.from(fileContent, 'utf8');
 
         // Delete existing file with same name if present in storage
-        const existingFiles = (storage.files || []).filter(f => !f.directory && f.name === fileName);
+        const existingFiles = getFilesArray(storage).filter(f => !f.directory && f.name === fileName);
         for (const file of existingFiles) {
             await new Promise((resolve) => file.delete(() => resolve()));
         }
@@ -67,7 +72,7 @@ async function loadDataFromMega(type) {
     if (!hasValidMegaCredentials()) return null;
     try {
         const storage = await getMegaStorage();
-        const filesArray = storage.files || [];
+        const filesArray = getFilesArray(storage);
         const targetFile = filesArray.find(f => !f.directory && f.name === `${type}.json`);
         if (!targetFile) return null;
 
@@ -93,7 +98,7 @@ async function syncMediaToMega(filename, buffer) {
     if (!hasValidMegaCredentials()) return;
     try {
         const storage = await getMegaStorage();
-        const filesArray = storage.files || [];
+        const filesArray = getFilesArray(storage);
         let mediaFolder = filesArray.find(f => f.name === 'KCH_Connect_Media' && f.directory);
 
         if (!mediaFolder) {
@@ -106,7 +111,7 @@ async function syncMediaToMega(filename, buffer) {
         }
 
         // Delete existing media file with same filename anywhere in storage
-        const existingFiles = (storage.files || []).filter(f => !f.directory && f.name === filename);
+        const existingFiles = getFilesArray(storage).filter(f => !f.directory && f.name === filename);
         for (const file of existingFiles) {
             await new Promise((resolve) => file.delete(() => resolve()));
         }
@@ -127,7 +132,7 @@ async function deleteMediaFromMega(filename) {
     if (!hasValidMegaCredentials()) return;
     try {
         const storage = await getMegaStorage();
-        const filesArray = storage.files || [];
+        const filesArray = getFilesArray(storage);
         const existingFiles = filesArray.filter(f => !f.directory && f.name === filename);
         for (const file of existingFiles) {
             await new Promise((resolve) => file.delete(() => resolve()));
@@ -142,7 +147,7 @@ async function createMegaFolder(folderName) {
     if (!hasValidMegaCredentials()) return;
     try {
         const storage = await getMegaStorage();
-        const filesArray = storage.files || [];
+        const filesArray = getFilesArray(storage);
         let mediaFolder = filesArray.find(f => f.name === 'KCH_Connect_Media' && f.directory);
 
         if (!mediaFolder) {
@@ -154,7 +159,7 @@ async function createMegaFolder(folderName) {
             });
         }
 
-        const subFolders = (storage.files || []).filter(f => f.directory && f.name === folderName);
+        const subFolders = getFilesArray(storage).filter(f => f.directory && f.name === folderName);
         if (subFolders.length === 0) {
             await new Promise((resolve, reject) => {
                 mediaFolder.mkdir(folderName, (err, folder) => {
