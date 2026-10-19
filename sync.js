@@ -65,7 +65,7 @@ async function executeHFSync(type, data) {
         };
 
         await axios.post(
-            `https://huggingface.co/api/datasets/${HF_REPO}/commit/main`,
+            `https://huggingface.co/api/buckets/${HF_REPO}/commit/main`,
             payload,
             {
                 headers: {
@@ -134,7 +134,7 @@ async function syncMediaToHF(filename, buffer) {
         };
 
         await axios.post(
-            `https://huggingface.co/api/datasets/${HF_REPO}/commit/main`,
+            `https://huggingface.co/api/buckets/${HF_REPO}/commit/main`,
             payload,
             {
                 headers: {
