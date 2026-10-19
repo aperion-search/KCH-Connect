@@ -1,21 +1,5 @@
 require('dotenv').config();
-const { spawn } = require('child_process');
 const path = require('path');
-
-// If running on Windows host and not inside WSL, automatically shift execution to WSL
-if (process.platform === 'win32' && !process.env.WSL_DISTRO_NAME) {
-    const scriptPath = path.resolve(process.argv[1]);
-    const wslPath = scriptPath.replace(/^([A-Z]):/i, (match, p1) => `/mnt/${p1.toLowerCase()}`).replace(/\\/g, '/');
-
-    console.log(`[WSL Shift] Windows host detected. Shifting execution to WSL environment (${wslPath})...`);
-    const wslProcess = spawn('wsl', ['bash', '-lc', `node "${wslPath}" ${process.argv.slice(2).join(' ')}`], {
-        stdio: 'inherit'
-    });
-    wslProcess.on('exit', (code) => {
-        process.exit(code);
-    });
-    return;
-}
 
 const express = require('express');
 const cors = require('cors');
@@ -23,7 +7,7 @@ const fs = require('fs');
 const { exec } = require('child_process');
 const util = require('util');
 const execAsync = util.promisify(exec);
-const { syncData, loadDataFromMega, syncMediaToMega, deleteMediaFromMega } = require('./sync');
+const { syncData, loadDataFromMega, syncMediaToMega, deleteMediaFromMega, createMegaFolder } = require('./sync');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -79,29 +63,8 @@ function writeJSON(file, data) {
     }
 }
 
-// --- Startup HF Bucket Initialization ---
-async function initializeDataFromHF() {
-    // Automatically mount HF bucket when running locally (WSL / non-Render)
-    if (!process.env.RENDER) {
-        console.log(`[STARTUP] Local environment detected (not Render). Attempting automatic HF Bucket mount via hf-mount...`);
-        try {
-            const token = process.env.HF_TOKEN || process.env.HUGGINGFACE_TOKEN;
-            if (token) {
-                if (!fs.existsSync(DATA_DIR)) {
-                    fs.mkdirSync(DATA_DIR, { recursive: true });
-                }
-                await execAsync(`hf-mount KCH-Wajihiyah/KCH-M-connect ./data`, { timeout: 15000 });
-                console.log(`[STARTUP] Successfully mounted HF Bucket to ./data via hf-mount.`);
-            } else {
-                console.log(`[STARTUP] HF_TOKEN not set, skipping automatic mount attempt.`);
-            }
-        } catch (mountErr) {
-            console.log(`[STARTUP] hf-mount note: ${mountErr.message}. Falling back to standard sync/restore.`);
-        }
-    } else {
-        console.log(`[STARTUP] Render environment detected. Skipping local mount, using REST API sync.`);
-    }
-
+// --- Startup Mega Cloud Storage Initialization ---
+async function initializeDataFromMegaStartup() {
     const dataTypes = [
         { type: 'students', file: STUDENTS_FILE, defaultVal: [] },
         { type: 'teachers', file: TEACHERS_FILE, defaultVal: [] },
@@ -111,18 +74,18 @@ async function initializeDataFromHF() {
         { type: 'announcements', file: ANNOUNCEMENTS_FILE, defaultVal: [] }
     ];
 
-    console.log(`[STARTUP] Checking local data files against Hugging Face Bucket...`);
+    console.log(`[STARTUP] Checking local data files against Mega Cloud Storage...`);
     for (const item of dataTypes) {
         const exists = fs.existsSync(item.file);
         const content = exists ? fs.readFileSync(item.file, 'utf8').trim() : '';
         if (!exists || !content) {
-            console.log(`[STARTUP] Local ${item.type}.json missing or empty. Fetching from HF Bucket...`);
+            console.log(`[STARTUP] Local ${item.type}.json missing or empty. Fetching from Mega Cloud Storage...`);
             const cloudData = await loadDataFromMega(item.type);
             if (cloudData !== null && cloudData !== undefined) {
                 writeJSON(item.file, cloudData);
-                console.log(`[STARTUP] Successfully restored ${item.type}.json from HF Bucket.`);
+                console.log(`[STARTUP] Successfully restored ${item.type}.json from Mega Cloud Storage.`);
             } else {
-                console.log(`[STARTUP] No cloud backup found for ${item.type}. Initializing with default values.`);
+                console.log(`[STARTUP] No cloud backup found for ${item.type} on Mega. Initializing with default values.`);
                 writeJSON(item.file, item.defaultVal);
             }
         } else {
@@ -132,8 +95,8 @@ async function initializeDataFromHF() {
 }
 
 // Run startup sync in background
-initializeDataFromHF().catch(err => {
-    console.error(`[STARTUP] Error during HF Bucket initialization sync:`, err.message);
+initializeDataFromMegaStartup().catch(err => {
+    console.error(`[STARTUP] Error during Mega Cloud Storage initialization sync:`, err.message);
 });
 
 // ---------------- API ROUTES ----------------
@@ -474,6 +437,9 @@ app.post('/api/gallery', (req, res) => {
     if (!folders) {
         return res.status(400).json({ error: 'Folders data required.' });
     }
+    if (folders.length > 0 && folders[0] && folders[0].name) {
+        createMegaFolder(folders[0].name);
+    }
     if (writeJSON(GALLERY_FILE, folders)) {
         syncData('gallery', folders);
         res.json({ success: true, gallery: folders });
@@ -500,6 +466,9 @@ app.post('/api/announcements', (req, res) => {
         mediaType: req.body.mediaType || null
     };
     announcements.unshift(newAnnouncement);
+    if (newAnnouncement.title) {
+        createMegaFolder(`Announcement_${newAnnouncement.title}`);
+    }
     if (writeJSON(ANNOUNCEMENTS_FILE, announcements)) {
         syncData('announcements', announcements);
         res.status(201).json({ success: true, announcement: newAnnouncement });
@@ -531,19 +500,31 @@ app.get('/:catchall', (req, res) => {
 });
 
 async function startServer() {
-    const types = ['students', 'teachers', 'attendance', 'leaves', 'gallery', 'announcements'];
-    for (const type of types) {
-        const filePath = path.join(DATA_DIR, `${type}.json`);
-        const megaData = await loadDataFromMega(type);
-        if (megaData !== null) {
-            writeJSON(filePath, megaData);
-            console.log(`[INIT] Initialized ${type}.json from Mega cloud storage.`);
-        }
-    }
-
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
         console.log(`Server is running on http://localhost:${PORT}`);
     });
+
+    server.on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+            console.log(`[SERVER] Port ${PORT} is already in use. KCH Connect server is already running!`);
+        } else {
+            console.error(`[SERVER] Server error:`, err.message);
+        }
+    });
+
+    const types = ['students', 'teachers', 'attendance', 'leaves', 'gallery', 'announcements'];
+    for (const type of types) {
+        try {
+            const filePath = path.join(DATA_DIR, `${type}.json`);
+            const megaData = await loadDataFromMega(type);
+            if (megaData !== null) {
+                writeJSON(filePath, megaData);
+                console.log(`[INIT] Initialized ${type}.json from Mega cloud storage.`);
+            }
+        } catch (e) {
+            console.error(`[INIT] Error syncing ${type} from Mega:`, e.message);
+        }
+    }
 }
 
 startServer();

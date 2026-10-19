@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
+import axios from 'axios';
 
 export default function Management() {
   const {
@@ -49,7 +50,10 @@ export default function Management() {
     email: '',
     contactNos: '',
     arabicName: '',
-    hdob: ''
+    hdob: '',
+    hifzStatus: '',
+    password: '515253',
+    photo: ''
   });
 
   // Teacher Management State
@@ -71,7 +75,10 @@ export default function Management() {
       email: '',
       contactNos: '',
       arabicName: '',
-      hdob: ''
+      hdob: '',
+      hifzStatus: '',
+      password: '515253',
+      photo: ''
     });
     setIsEditing(false);
     setEditingItem(null);
@@ -97,7 +104,8 @@ export default function Management() {
     const studentData = {
       ...studentForm,
       id: targetId,
-      rollId: studentForm.rollId
+      rollId: studentForm.rollId,
+      password: studentForm.password || '515253'
     };
 
     if (isEditing) {
@@ -109,11 +117,53 @@ export default function Management() {
     resetStudentForm();
   };
 
+  const handleStudentPhotoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const reader = new FileReader();
+      const base64Data = await new Promise((resolve, reject) => {
+        reader.onload = (event) => resolve(event.target.result);
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+      });
+
+      const res = await axios.post('/api/upload', {
+        image: base64Data,
+        filename: file.name
+      });
+      setStudentForm(prev => ({ ...prev, photo: res.data.url }));
+      showToast('Photo uploaded successfully!');
+    } catch (err) {
+      showToast('Failed to upload photo.', 'error');
+    }
+  };
+
   const handleStudentEdit = (student) => {
-    setStudentForm({ ...student });
+    setStudentForm({
+      name: student.name || '',
+      rollId: student.rollId || '',
+      grade: student.grade || '',
+      division: student.division || '',
+      phone: student.phone || '',
+      gender: student.gender || '',
+      email: student.email || '',
+      contactNos: student.contactNos || '',
+      arabicName: student.arabicName || '',
+      hdob: student.hdob || '',
+      hifzStatus: student.hifzStatus || '',
+      password: student.password || '515253',
+      photo: student.photo || ''
+    });
     setEditingItem(student);
     setIsEditing(true);
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+  };
+
+  const handleResetPassword = async (student) => {
+    const updated = { ...student, password: '515253' };
+    await updateStudent(student.id || student.rollId, updated);
+    showToast(`Password reset to default (515253) for ${student.name}`);
   };
 
   const handleStudentDelete = async (id) => {
@@ -178,6 +228,25 @@ export default function Management() {
     if (activeTab === 'students') {
       return (
         <form onSubmit={handleStudentSubmit} className="space-y-4">
+          <div className="flex items-center gap-4 mb-4">
+            {studentForm.photo ? (
+              <img src={studentForm.photo} alt="Student" className="w-16 h-16 rounded-full object-cover border border-madrasa-gold shadow" />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-madrasa-gold/20 flex items-center justify-center text-madrasa-gold font-bold text-xl border border-madrasa-gold shadow">
+                {studentForm.name ? studentForm.name.charAt(0) : 'S'}
+              </div>
+            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Student Photo</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleStudentPhotoUpload}
+                className="text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 cursor-pointer"
+              />
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Student Name *</label>
@@ -231,7 +300,7 @@ export default function Management() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
               <input
@@ -254,16 +323,45 @@ export default function Management() {
                 <option value="Other">Other</option>
               </select>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Hifz Status</label>
+              <select
+                value={studentForm.hifzStatus}
+                onChange={(e) => setStudentForm({...studentForm, hifzStatus: e.target.value})}
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white text-sm font-medium text-primary-700"
+              >
+                <option value="">Select Marhala...</option>
+                <option value="Marhala 1">Marhala 1</option>
+                <option value="Marhala 2">Marhala 2</option>
+                <option value="Marhala 3">Marhala 3</option>
+                <option value="Marhala 4">Marhala 4</option>
+                <option value="Marhala 5">Marhala 5</option>
+                <option value="Marhala 6">Marhala 6</option>
+                <option value="Marhala 7">Marhala 7</option>
+              </select>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Contact Nos</label>
-            <input
-              type="text"
-              value={studentForm.contactNos}
-              onChange={(e) => setStudentForm({...studentForm, contactNos: e.target.value})}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <input
+                type="text"
+                value={studentForm.password}
+                onChange={(e) => setStudentForm({...studentForm, password: e.target.value})}
+                placeholder="Default: 515253"
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Contact Nos</label>
+              <input
+                type="text"
+                value={studentForm.contactNos}
+                onChange={(e) => setStudentForm({...studentForm, contactNos: e.target.value})}
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -383,13 +481,15 @@ export default function Management() {
     if (activeTab === 'students') {
       return (
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[600px]">
+          <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 bg-white">
-                <th className="px-4 sm:px-6 py-3 font-medium">Name & Contact</th>
+                <th className="px-4 sm:px-6 py-3 font-medium">Student Name & Contact</th>
                 <th className="px-4 sm:px-6 py-3 font-medium">Roll ID</th>
                 <th className="px-4 sm:px-6 py-3 font-medium">Class</th>
-                <th className="px-4 sm:px-6 py-3 font-medium">Division</th>
+                <th className="px-4 sm:px-6 py-3 font-medium">Hifz Status</th>
+                <th className="px-4 sm:px-6 py-3 font-medium text-center">Contact / Call / WhatsApp</th>
+                <th className="px-4 sm:px-6 py-3 font-medium text-center w-36">Password</th>
                 <th className="px-4 sm:px-6 py-3 font-medium text-center w-32">Actions</th>
               </tr>
             </thead>
@@ -398,14 +498,21 @@ export default function Management() {
                 <tr key={student.id} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-4 sm:px-6 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-madrasa-gold/10 flex items-center justify-center text-madrasa-gold font-bold text-sm flex-shrink-0">
-                        {student.name.charAt(0)}
+                      {student.photo ? (
+                        <img src={student.photo} alt={student.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0 border border-madrasa-gold/30 shadow-sm" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-madrasa-gold/10 flex items-center justify-center text-madrasa-gold font-bold text-sm flex-shrink-0 border border-madrasa-gold/20">
+                          {student.name.charAt(0)}
+                        </div>
+                      )}
+                      <div>
+                        <p className="font-medium text-gray-900 text-sm sm:text-base">{student.name}</p>
+                        <p className="text-xs text-gray-400">{student.phone || student.contactNos || 'No Phone'}</p>
                       </div>
-                      <p className="font-medium text-gray-900 text-sm sm:text-base">{student.name}</p>
                     </div>
                   </td>
                   <td className="px-4 sm:px-6 py-3">
-                    <p className="text-sm text-gray-600">{student.rollId}</p>
+                    <p className="text-sm text-gray-600 font-medium">{student.rollId}</p>
                   </td>
                   <td className="px-4 sm:px-6 py-3">
                     <span className="px-2.5 py-1 bg-madrasa-gold/10 text-gray-800 text-xs rounded-full font-medium">
@@ -413,7 +520,49 @@ export default function Management() {
                     </span>
                   </td>
                   <td className="px-4 sm:px-6 py-3">
-                    <span className="text-sm text-gray-600">{student.division || '-'}</span>
+                    <span className="px-2.5 py-1 bg-purple-50 text-purple-700 text-xs rounded-full font-semibold">
+                      {student.hifzStatus || 'Not Set'}
+                    </span>
+                  </td>
+                  <td className="px-4 sm:px-6 py-3 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      {student.phone ? (
+                        <>
+                          <a
+                            href={`tel:${student.phone}`}
+                            className="p-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors shadow-sm"
+                            title={`Call ${student.phone}`}
+                          >
+                            <i className="fa-solid fa-phone text-sm"></i>
+                          </a>
+                          <a
+                            href={`https://wa.me/${student.phone.replace(/[^0-9]/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors shadow-sm"
+                            title={`WhatsApp ${student.phone}`}
+                          >
+                            <i className="fa-brands fa-whatsapp text-sm"></i>
+                          </a>
+                        </>
+                      ) : (
+                        <span className="text-xs text-gray-400">No phone</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 sm:px-6 py-3 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded text-gray-700">
+                        {student.password || '515253'}
+                      </span>
+                      <button
+                        onClick={() => handleResetPassword(student)}
+                        className="text-xs text-primary-600 hover:text-primary-800 font-bold underline cursor-pointer"
+                        title="Reset password to 515253"
+                      >
+                        Reset
+                      </button>
+                    </div>
                   </td>
                   <td className="px-4 sm:px-6 py-3">
                     <div className="flex justify-center gap-1 sm:gap-2">
@@ -477,7 +626,7 @@ export default function Management() {
                           </span>
                         ))
                       ) : (
-                        <span className="text-sm text-gray-400">None</span>
+                        <span className="text-xs text-gray-400">None</span>
                       )}
                     </div>
                   </td>
@@ -517,64 +666,46 @@ export default function Management() {
   };
 
   return (
-    <div className="animate-fade-in pb-12 sm:pb-0">
-      <div className="flex justify-between items-end mb-6">
+    <div className="animate-fade-in max-w-7xl mx-auto pb-12">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Management</h1>
-          <p className="text-gray-500 mt-1 text-sm">Admin panel for managing students and teachers</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">System Management</h1>
+          <p className="text-gray-500 mt-1 text-sm">Manage students, teachers, Hifz status, and passwords</p>
+        </div>
+        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-xl">
+          <button
+            onClick={() => { setActiveTab('students'); resetStudentForm(); }}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+              activeTab === 'students' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            Students ({students.length})
+          </button>
+          <button
+            onClick={() => { setActiveTab('teachers'); resetTeacherForm(); }}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+              activeTab === 'teachers' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            Teachers ({teachers.length})
+          </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8">
-        <div className="border-b border-gray-200">
-          <div className="flex overflow-x-auto">
-            <button
-              onClick={() => {setActiveTab('students'); resetStudentForm();}}
-              className={`px-6 py-3.5 sm:py-4 font-medium text-sm transition-colors cursor-pointer whitespace-nowrap ${
-                activeTab === 'students'
-                  ? 'text-primary-600 border-b-2 border-primary-600 bg-primary-50'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-            >
-              Students ({students.length})
-            </button>
-            <button
-              onClick={() => {setActiveTab('teachers'); resetTeacherForm();}}
-              className={`px-6 py-3.5 sm:py-4 font-medium text-sm transition-colors cursor-pointer whitespace-nowrap ${
-                activeTab === 'teachers'
-                  ? 'text-primary-600 border-b-2 border-primary-600 bg-primary-50'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-            >
-              Teachers ({teachers.length})
-            </button>
-          </div>
-        </div>
-
-        <div className="p-4 sm:p-6">
-          {renderTable()}
-          {students.length === 0 && activeTab === 'students' && (
-            <div className="text-center py-12">
-              <p className="text-gray-500 text-sm">No students found. Add your first student using the form.</p>
-            </div>
-          )}
-          {teachers.length === 0 && activeTab === 'teachers' && (
-            <div className="text-center py-12">
-              <p className="text-gray-500 text-sm">No teachers found. Add your first teacher using the form.</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-16 sm:mb-6">
-        <div className="px-6 py-4 border-b border-gray-50 bg-gray-50/50">
-          <h2 className="font-semibold text-gray-800 text-sm">
-            {activeTab === 'students' ? 'Add/Edit Student' : 'Add/Edit Teacher'}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mb-8 overflow-hidden">
+        <div className="p-4 sm:p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+          <h2 className="font-semibold text-gray-800 text-base capitalize">
+            {activeTab === 'students' ? 'Students Directory' : 'Teachers Directory'}
           </h2>
         </div>
-        <div className="p-4 sm:p-6">
-          {renderForm()}
-        </div>
+        {renderTable()}
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <h2 className="font-semibold text-gray-800 mb-4 text-base">
+          {isEditing ? `Edit ${activeTab === 'students' ? 'Student' : 'Teacher'}` : `Add New ${activeTab === 'students' ? 'Student' : 'Teacher'}`}
+        </h2>
+        {renderForm()}
       </div>
     </div>
   );

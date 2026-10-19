@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 export default function Login() {
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
   const { handleLogin } = useApp();
 
@@ -18,17 +19,10 @@ export default function Login() {
         <div className="text-center mb-6 mt-4">
           <div className="flex justify-center items-center mb-4">
             <img
-              src="/369669-removebg-preview.png"
+              src="logo.png"
               alt="Madrasa Logo"
-              className="h-28 object-contain drop-shadow-[0_0_15px_rgba(212,175,55,0.4)]"
-              onError={(e) => {
-                e.target.style.display = 'none';
-                if (e.target.nextElementSibling) e.target.nextElementSibling.style.display = 'flex';
-              }}
+              className="h-32 object-contain drop-shadow-[0_0_15px_rgba(212,175,55,0.4)]"
             />
-            <div className="hidden justify-center items-end gap-5 text-madrasa-gold mx-auto drop-shadow-[0_0_15px_rgba(212,175,55,0.4)]">
-              <i className="fa-solid fa-book-open text-6xl"></i>
-            </div>
           </div>
           <h1 className="text-2xl font-bold uppercase tracking-widest gold-gradient leading-tight">
             Madrasa Wajihiyah<br />Khachroad
@@ -51,13 +45,21 @@ export default function Login() {
           <div className="relative">
             <i className="fa-solid fa-lock absolute left-4 top-1/2 transform -translate-y-1/2 text-madrasa-gold/60"></i>
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
-              className="w-full pl-11 pr-4 py-3 bg-[#1e293b]/70 border border-madrasa-gold/30 text-white rounded-xl focus:ring-2 focus:ring-madrasa-gold outline-none transition-all placeholder-gray-500"
+              className="w-full pl-11 pr-12 py-3 bg-[#1e293b]/70 border border-madrasa-gold/30 text-white rounded-xl focus:ring-2 focus:ring-madrasa-gold outline-none transition-all placeholder-gray-500"
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-4 top-1/2 transform -translate-y-1/2 text-madrasa-gold/60 hover:text-madrasa-gold transition-colors cursor-pointer"
+              title={showPassword ? 'Hide password' : 'Show password'}
+            >
+              <i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+            </button>
           </div>
 
           <div className="flex items-center justify-between mt-2 mb-1 px-1">
@@ -70,9 +72,6 @@ export default function Login() {
               />
               Remember me
             </label>
-            <span className="text-[11px] bg-madrasa-gold/20 text-madrasa-lightgold px-2 py-1 rounded border border-madrasa-gold/30">
-              Student Pass: <b>515253</b>
-            </span>
           </div>
 
           <button

@@ -3,11 +3,12 @@ import { useApp } from '../context/AppContext';
 import axios from 'axios';
 
 export default function Gallery() {
-  const { currentUser, students, teachers, showToast, gallery, saveGallery } = useApp();
+  const { currentUser, showToast, gallery, saveGallery } = useApp();
   const [folders, setFolders] = useState([]);
   const [newFolder, setNewFolder] = useState('');
   const [selectedFolder, setSelectedFolder] = useState(null);
   const [uploadFile, setUploadFile] = useState(null);
+  const [previewItem, setPreviewItem] = useState(null);
   const isAdmin = currentUser?.role === 'admin';
 
   React.useEffect(() => {
@@ -48,7 +49,7 @@ export default function Gallery() {
       try {
         await axios.delete(`/api/upload/${filename}`);
       } catch (e) {
-        console.error('Failed to delete media from server/Mega:', e);
+        console.error('Failed to delete media from server/Bucket:', e);
       }
     }
     const updated = folders.map(f => f.id === folderId ? { ...f, items: f.items.filter(i => i.id !== itemId) } : f);
@@ -68,9 +69,27 @@ export default function Gallery() {
           filename: uploadFile.name
         });
         const mediaUrl = res.data.url;
+        const ext = uploadFile.name.split('.').pop().toLowerCase();
+        let fileType = 'file';
+        if (uploadFile.type.startsWith('image') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) {
+          fileType = 'photo';
+        } else if (uploadFile.type.startsWith('video') || ['mp4', 'webm', 'ogg', 'mov'].includes(ext)) {
+          fileType = 'video';
+        } else if (uploadFile.type.startsWith('audio') || ['mp3', 'wav', 'aac'].includes(ext)) {
+          fileType = 'audio';
+        } else if (['pdf'].includes(ext)) {
+          fileType = 'pdf';
+        } else if (['doc', 'docx', 'txt', 'rtf'].includes(ext)) {
+          fileType = 'document';
+        } else if (['xls', 'xlsx', 'csv'].includes(ext)) {
+          fileType = 'spreadsheet';
+        } else if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+          fileType = 'archive';
+        }
+
         const newItem = {
           id: Date.now(),
-          type: uploadFile.type.startsWith('video') ? 'video' : 'photo',
+          type: fileType,
           url: mediaUrl,
           title: uploadFile.name
         };
@@ -78,18 +97,78 @@ export default function Gallery() {
         setFolders(updated);
         saveGallery(updated);
         setUploadFile(null);
-        showToast('Media uploaded and synced successfully!');
+        showToast('File uploaded and synced successfully!');
       } catch (err) {
         console.error('Upload error:', err);
-        showToast('Failed to upload media file', 'error');
+        showToast('Failed to upload file', 'error');
       }
     };
     reader.readAsDataURL(uploadFile);
   };
 
+  const renderFileThumbnail = (item) => {
+    const ext = (item.title || item.url).split('.').pop().toLowerCase();
+    if (item.type === 'photo' || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) {
+      return <img src={item.url} alt={item.title} className="w-full h-48 object-cover cursor-pointer hover:opacity-95 transition" onClick={() => setPreviewItem(item)} />;
+    }
+    if (item.type === 'video' || ['mp4', 'webm', 'ogg', 'mov'].includes(ext)) {
+      return <video src={item.url} controls className="w-full h-48 object-cover bg-black" />;
+    }
+    if (item.type === 'audio' || ['mp3', 'wav', 'aac'].includes(ext)) {
+      return (
+        <div className="w-full h-48 bg-gradient-to-br from-purple-500 to-indigo-600 flex flex-col items-center justify-center text-white p-4">
+          <i className="fa-solid fa-music text-4xl mb-2 animate-pulse"></i>
+          <audio src={item.url} controls className="w-full mt-2" />
+        </div>
+      );
+    }
+    if (item.type === 'pdf' || ['pdf'].includes(ext)) {
+      return (
+        <div onClick={() => setPreviewItem(item)} className="w-full h-48 bg-red-50 flex flex-col items-center justify-center text-red-600 p-4 border-b border-red-100 cursor-pointer hover:bg-red-100/60 transition">
+          <i className="fa-solid fa-file-pdf text-5xl mb-2"></i>
+          <span className="text-xs font-bold uppercase tracking-wide bg-red-100 text-red-700 px-3 py-1 rounded-full shadow-xs">PDF Document</span>
+          <span className="text-[11px] text-gray-500 mt-1">Click to Preview</span>
+        </div>
+      );
+    }
+    if (item.type === 'document' || ['doc', 'docx', 'txt', 'rtf'].includes(ext)) {
+      return (
+        <div onClick={() => setPreviewItem(item)} className="w-full h-48 bg-blue-50 flex flex-col items-center justify-center text-blue-600 p-4 border-b border-blue-100 cursor-pointer hover:bg-blue-100/60 transition">
+          <i className="fa-solid fa-file-lines text-5xl mb-2"></i>
+          <span className="text-xs font-bold uppercase tracking-wide bg-blue-100 text-blue-700 px-3 py-1 rounded-full shadow-xs">Document</span>
+          <span className="text-[11px] text-gray-500 mt-1">Click to Preview</span>
+        </div>
+      );
+    }
+    if (item.type === 'spreadsheet' || ['xls', 'xlsx', 'csv'].includes(ext)) {
+      return (
+        <div onClick={() => setPreviewItem(item)} className="w-full h-48 bg-emerald-50 flex flex-col items-center justify-center text-emerald-600 p-4 border-b border-emerald-100 cursor-pointer hover:bg-emerald-100/60 transition">
+          <i className="fa-solid fa-file-excel text-5xl mb-2"></i>
+          <span className="text-xs font-bold uppercase tracking-wide bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full shadow-xs">Spreadsheet</span>
+          <span className="text-[11px] text-gray-500 mt-1">Click to Preview</span>
+        </div>
+      );
+    }
+    if (item.type === 'archive' || ['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+      return (
+        <div className="w-full h-48 bg-amber-50 flex flex-col items-center justify-center text-amber-600 p-4 border-b border-amber-100">
+          <i className="fa-solid fa-file-zipper text-5xl mb-2"></i>
+          <span className="text-xs font-bold uppercase tracking-wide bg-amber-100 text-amber-700 px-3 py-1 rounded-full shadow-xs">Archive / ZIP</span>
+        </div>
+      );
+    }
+    return (
+      <div onClick={() => setPreviewItem(item)} className="w-full h-48 bg-gray-50 flex flex-col items-center justify-center text-gray-600 p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-100 transition">
+        <i className="fa-solid fa-file-arrow-down text-5xl mb-2 text-primary-500"></i>
+        <span className="text-xs font-bold uppercase tracking-wide bg-gray-200 text-gray-700 px-3 py-1 rounded-full shadow-xs">{ext || 'File'} Format</span>
+        <span className="text-[11px] text-gray-500 mt-1">Click to View</span>
+      </div>
+    );
+  };
+
   return (
     <div className="animate-fade-in">
-      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">Gallery</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">Gallery & File Bucket</h1>
 
       {/* Folders bar */}
       <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-6">
@@ -114,7 +193,7 @@ export default function Gallery() {
         ))}
         {isAdmin && (
           <div className="flex items-center gap-2 flex-shrink-0">
-            <input value={newFolder} onChange={e => setNewFolder(e.target.value)} placeholder="New event..." className="px-3 py-2 rounded-lg border border-gray-200 text-sm w-40 bg-white" />
+            <input value={newFolder} onChange={e => setNewFolder(e.target.value)} placeholder="New event folder..." className="px-3 py-2 rounded-lg border border-gray-200 text-sm w-40 bg-white" />
             <button onClick={handleAddFolder} className="px-3 py-2 bg-primary-600 text-white rounded-lg text-sm font-bold cursor-pointer">Create</button>
           </div>
         )}
@@ -123,31 +202,63 @@ export default function Gallery() {
       {/* Admin upload inside folder */}
       {isAdmin && selectedFolder && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6">
-          <h3 className="font-semibold mb-2 text-sm text-gray-800">Add Media to {currentFolder?.name}</h3>
+          <h3 className="font-semibold mb-2 text-sm text-gray-800">Add File / Media of Any Format to {currentFolder?.name}</h3>
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            <input type="file" accept="image/*,video/*" onChange={e => setUploadFile(e.target.files[0])} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 cursor-pointer" />
-            <button onClick={handleUpload} disabled={!uploadFile} className="px-5 py-2 bg-primary-600 text-white rounded-lg text-sm font-bold hover:bg-primary-700 transition disabled:opacity-50 cursor-pointer">Upload</button>
+            <input type="file" onChange={e => setUploadFile(e.target.files[0])} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 cursor-pointer" />
+            <button onClick={handleUpload} disabled={!uploadFile} className="px-5 py-2 bg-primary-600 text-white rounded-lg text-sm font-bold hover:bg-primary-700 transition disabled:opacity-50 cursor-pointer">Upload to Bucket</button>
           </div>
+          <p className="text-xs text-gray-400 mt-2">Supports images, videos, PDFs, Word docs, Excel sheets, ZIP archives, and any file format with auto thumbnail generation.</p>
         </div>
       )}
 
       {/* Items grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {(currentFolder?.items || []).map(item => (
-          <div key={item.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative">
-            {item.type === 'video' ? <video src={item.url} controls className="w-full h-48 object-cover bg-black" /> : <img src={item.url} alt={item.title} className="w-full h-48 object-cover" />}
-            <div className="p-4 flex justify-between items-center">
-              <h4 className="font-medium text-sm text-gray-800 truncate pr-2">{item.title}</h4>
-              {isAdmin && (
-                <button onClick={() => handleDeleteItem(selectedFolder, item.id)} className="text-red-600 hover:text-red-700 p-1 cursor-pointer flex-shrink-0" title="Delete"><i className="fa-solid fa-trash-can"></i></button>
-              )}
+          <div key={item.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative flex flex-col justify-between">
+            <div>
+              {renderFileThumbnail(item)}
+            </div>
+            <div className="p-4 flex justify-between items-center bg-white">
+              <h4 className="font-medium text-sm text-gray-800 truncate pr-2" title={item.title}>{item.title}</h4>
+              <div className="flex items-center gap-2">
+                {isAdmin && (
+                  <button onClick={() => handleDeleteItem(selectedFolder, item.id)} className="text-red-600 hover:text-red-700 p-1 cursor-pointer flex-shrink-0" title="Delete"><i className="fa-solid fa-trash-can"></i></button>
+                )}
+              </div>
             </div>
           </div>
         ))}
         {(currentFolder?.items || []).length === 0 && (
-          <div className="col-span-full text-center text-gray-400 py-12 text-sm">No media in this event folder yet.</div>
+          <div className="col-span-full text-center text-gray-400 py-12 text-sm bg-white rounded-2xl border border-gray-100">No files in this event folder yet.</div>
         )}
       </div>
+
+      {/* Preview Modal */}
+      {previewItem && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-fade-in">
+            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <h3 className="font-bold text-gray-800 truncate">{previewItem.title}</h3>
+              <button onClick={() => setPreviewItem(null)} className="text-gray-500 hover:text-gray-800 p-2 text-lg"><i className="fa-solid fa-xmark"></i></button>
+            </div>
+            <div className="p-6 flex-1 overflow-auto flex items-center justify-center bg-gray-900 min-h-[350px]">
+              {previewItem.url.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) || previewItem.type === 'photo' ? (
+                <img src={previewItem.url} alt={previewItem.title} className="max-h-[70vh] object-contain rounded-lg" />
+              ) : previewItem.url.match(/\.pdf$/i) || previewItem.type === 'pdf' ? (
+                <iframe src={previewItem.url} title={previewItem.title} className="w-full h-[65vh] rounded-lg bg-white" />
+              ) : (
+                <div className="text-center text-white py-12">
+                  <i className="fa-solid fa-file-arrow-down text-6xl text-primary-400 mb-4"></i>
+                  <p className="text-lg font-medium mb-4">Preview available</p>
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-100 flex justify-end bg-gray-50 gap-3">
+              <button onClick={() => setPreviewItem(null)} className="px-5 py-2 bg-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-300 transition">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

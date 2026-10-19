@@ -19,7 +19,7 @@ export default function Students() {
       return students.filter(s => s.rollId === currentUser.studentId);
     }
     return [];
-  }, [currentUser, students, teachers]); // Need to add teachers context - will be fixed in next steps
+  }, [currentUser, students, teachers]);
 
   // Sort students by grade
   const sortedStudents = useMemo(() => {
@@ -76,15 +76,7 @@ export default function Students() {
                   <div className="flex items-center gap-2 text-xs text-gray-500">
                     <span>Roll: {student.rollId}</span>
                     {student.phone && student.phone !== '-' && (
-                      <a
-                        href={`https://wa.me/91${student.phone.replace(/[^0-9]/g, '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center text-green-600 hover:text-green-700"
-                      >
-                        <i className="fa-brands fa-whatsapp text-sm mr-1"></i>
-                        <span className="hidden sm:inline">{student.phone}</span>
-                      </a>
+                      <span className="text-gray-500">{student.phone}</span>
                     )}
                   </div>
                 </div>

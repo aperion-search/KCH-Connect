@@ -1,9 +1,79 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
+import axios from 'axios';
 
 export default function Dashboard() {
-  const { currentUser, students, attendance, leaves, currentDate, getVisibleStudents, setActiveTab, syncStatus } = useApp();
+  const { currentUser, students, attendance, leaves, currentDate, getVisibleStudents, setActiveTab, syncStatus, updateStudent, showToast } = useApp();
   const visibleStudents = useMemo(() => getVisibleStudents(), [currentUser, students, getVisibleStudents]);
+
+  const userData = currentUser?.role === 'parent'
+    ? students.find(s => s.rollId === currentUser.studentId || String(s.id) === String(currentUser.studentId))
+    : null;
+
+  const [newPassword, setNewPassword] = useState('');
+  const [hifzStatus, setHifzStatus] = useState(userData?.hifzStatus || '');
+
+  React.useEffect(() => {
+    if (userData?.hifzStatus) {
+      setHifzStatus(userData.hifzStatus);
+    }
+  }, [userData]);
+
+  const handleUpdatePassword = async (e) => {
+    e.preventDefault();
+    if (!newPassword.trim()) {
+      showToast('Please enter a new password', 'error');
+      return;
+    }
+    if (userData) {
+      await updateStudent(userData.id || userData.rollId, {
+        ...userData,
+        password: newPassword
+      });
+      showToast('Password updated successfully!');
+      setNewPassword('');
+    }
+  };
+
+  const handleUpdateHifz = async (newStatus) => {
+    setHifzStatus(newStatus);
+    if (userData) {
+      await updateStudent(userData.id || userData.rollId, {
+        ...userData,
+        hifzStatus: newStatus
+      });
+      showToast('Hifz status updated successfully!');
+    }
+  };
+
+  const handlePhotoChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const reader = new FileReader();
+      const base64Data = await new Promise((resolve, reject) => {
+        reader.onload = (event) => resolve(event.target.result);
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+      });
+
+      const uploadRes = await axios.post('/api/upload', {
+        image: base64Data,
+        filename: file.name
+      });
+      const photoUrl = uploadRes.data.url;
+
+      if (userData) {
+        await updateStudent(userData.id || userData.rollId, {
+          ...userData,
+          photo: photoUrl
+        });
+        showToast('Profile photo updated successfully!');
+      }
+    } catch (err) {
+      showToast('Failed to upload profile photo.', 'error');
+    }
+  };
 
   // Today's attendance for current date
   const todayRecord = attendance[currentDate] || {};
@@ -99,15 +169,6 @@ export default function Dashboard() {
                   <p className="text-base text-gray-600 font-bold" style={{fontFamily:'"Kanz-al-Marjaan", serif'}}>{student.arabicName || '-'}</p>
                   <p className="text-sm text-gray-500">Class {student.grade} • Absent</p>
                 </div>
-                <a
-                  href={`https://wa.me/91${student.phone.replace(/[^0-9]/g, '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-green-600 hover:text-green-700 text-sm font-medium flex items-center gap-1"
-                >
-                  <i className="fa-brands fa-whatsapp text-base"></i>
-                  <span className="hidden sm:inline">Notify</span>
-                </a>
               </li>
             ))
           ) : (
@@ -135,15 +196,6 @@ export default function Dashboard() {
                   <p className="text-base text-gray-600 font-bold" style={{fontFamily:'"Kanz-al-Marjaan", serif'}}>{student.arabicName || '-'}</p>
                   <p className="text-sm text-gray-500">Class {student.grade} • On Leave</p>
                 </div>
-                <a
-                  href={`https://wa.me/91${student.phone.replace(/[^0-9]/g, '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-green-600 hover:text-green-700 text-sm font-medium flex items-center gap-1"
-                >
-                  <i className="fa-brands fa-whatsapp text-base"></i>
-                  <span className="hidden sm:inline">WhatsApp</span>
-                </a>
               </li>
             ))
           ) : (
@@ -156,53 +208,100 @@ export default function Dashboard() {
     </>
   ) : (
     <>
-      {/* Parent / Student Dashboard Profile */}
+      {/* Parent / Student Dashboard Profile & Settings */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
-        <div className="p-6 border-b border-gray-50 bg-gradient-to-r from-madrasa-blue to-blue-900 text-white">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-madrasa-gold text-madrasa-blue flex items-center justify-center text-2xl font-bold flex-shrink-0">
-              {currentUser?.details?.name?.charAt(0) || currentUser?.name?.charAt(0) || 'S'}
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold">{currentUser?.details?.name || currentUser?.name || '-'}</h2>
-              <p className="text-gray-300 font-medium">Class: {currentUser?.details?.grade || '-'}</p>
-            </div>
+        <div className="p-6 border-b border-gray-50 bg-gradient-to-r from-madrasa-blue to-blue-900 text-white flex items-center gap-4">
+          <div className="relative group cursor-pointer" title="Click to change profile photo">
+            <label className="cursor-pointer block">
+              {userData?.photo ? (
+                <img src={userData.photo} alt={currentUser.name} className="w-16 h-16 rounded-full object-cover border-2 border-madrasa-gold shadow-md" />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-madrasa-gold text-madrasa-blue flex items-center justify-center text-2xl font-bold flex-shrink-0 border-2 border-madrasa-gold shadow-md">
+                  {currentUser?.details?.name?.charAt(0) || currentUser?.name?.charAt(0) || 'S'}
+                </div>
+              )}
+              <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white text-[10px] font-bold">
+                Change
+              </div>
+              <input type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+            </label>
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold">{userData?.name || currentUser?.details?.name || currentUser?.name || '-'}</h2>
+            <p className="text-gray-300 font-medium">Class: {userData?.grade || currentUser?.details?.grade || '-'}</p>
+            <p className="text-xs text-madrasa-gold mt-0.5">Click photo to update profile picture</p>
           </div>
         </div>
         <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           <div>
             <p className="text-xs text-gray-500 uppercase font-semibold mb-1">ITS ID / Roll ID</p>
-            <p className="text-gray-900 font-medium">{currentUser?.details?.rollId || currentUser?.details?.id || currentUser?.id || '-'}</p>
+            <p className="text-gray-900 font-medium">{userData?.rollId || userData?.id || currentUser?.details?.rollId || '-'}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Grade / Class</p>
-            <p className="text-gray-900 font-medium">{currentUser?.details?.grade || '-'}</p>
+            <p className="text-gray-900 font-medium">{userData?.grade || currentUser?.details?.grade || '-'}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Division</p>
-            <p className="text-gray-900 font-medium">{currentUser?.details?.division || '-'}</p>
+            <p className="text-gray-900 font-medium">{userData?.division || currentUser?.details?.division || '-'}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Gender</p>
-            <p className="text-gray-900 font-medium">{currentUser?.details?.gender || '-'}</p>
+            <p className="text-gray-900 font-medium">{userData?.gender || currentUser?.details?.gender || '-'}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Phone / Mobile No.</p>
-            <p className="text-gray-900 font-medium">{currentUser?.details?.phone || '-'}</p>
+            <p className="text-gray-900 font-medium">{userData?.phone || currentUser?.details?.phone || '-'}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Email</p>
-            <p className="text-gray-900 font-medium">{currentUser?.details?.email || '-'}</p>
+            <p className="text-gray-900 font-medium">{userData?.email || currentUser?.details?.email || '-'}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Date of Birth</p>
-            <p className="text-gray-900 font-medium">{currentUser?.details?.hdob || '-'}</p>
+            <p className="text-gray-900 font-medium">{userData?.hdob || currentUser?.details?.hdob || '-'}</p>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 uppercase font-semibold mb-1 block">Hifz Status (Marhala)</label>
+            <select
+              value={hifzStatus}
+              onChange={(e) => handleUpdateHifz(e.target.value)}
+              className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white font-semibold text-primary-700 w-full cursor-pointer"
+            >
+              <option value="">Select Marhala...</option>
+              <option value="Marhala 1">Marhala 1</option>
+              <option value="Marhala 2">Marhala 2</option>
+              <option value="Marhala 3">Marhala 3</option>
+              <option value="Marhala 4">Marhala 4</option>
+              <option value="Marhala 5">Marhala 5</option>
+              <option value="Marhala 6">Marhala 6</option>
+              <option value="Marhala 7">Marhala 7</option>
+            </select>
           </div>
           <div className="col-span-full">
             <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Arabic Name</p>
             <p className="text-xl font-bold text-gray-900" style={{fontFamily:'"Kanz-al-Marjaan", serif'}}>
-              {currentUser?.details?.arabicName || '-'}
+              {userData?.arabicName || currentUser?.details?.arabicName || '-'}
             </p>
+          </div>
+
+          <div className="col-span-full pt-4 border-t border-gray-100">
+            <h3 className="text-base font-semibold text-gray-800 mb-3">Change Password</h3>
+            <form onSubmit={handleUpdatePassword} className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="password"
+                placeholder="Enter new password (e.g. 515253)"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="px-4 py-2 border border-gray-200 rounded-lg text-sm flex-1"
+              />
+              <button
+                type="submit"
+                className="px-5 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium text-sm transition-colors cursor-pointer whitespace-nowrap"
+              >
+                Update Password
+              </button>
+            </form>
           </div>
         </div>
       </div>

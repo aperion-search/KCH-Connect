@@ -5,6 +5,7 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Attendance from './components/Attendance';
 import Leaves from './components/Leaves';
+import Announcements from './components/Announcements';
 import Management from './components/Management';
 import Gallery from './components/Gallery';
 import Profile from './components/Profile';
@@ -34,6 +35,7 @@ export default function App() {
       { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-pie' },
       { id: 'attendance', label: 'Attendance', icon: 'fa-clipboard-user' },
       { id: 'leaves', label: 'Leaves', icon: 'fa-envelope-open-text' },
+      { id: 'announcements', label: 'Announcements', icon: 'fa-bullhorn' },
     ];
 
     // Add management and gallery to mobile nav if admin
@@ -73,7 +75,7 @@ export default function App() {
           <header className="sm:hidden bg-madrasa-blue h-16 border-b border-madrasa-gold/30 flex items-center justify-between px-4 z-20 shadow-md flex-shrink-0">
             <div className="flex items-center">
               <div className="flex items-center justify-center w-10 h-10 mr-2 bg-madrasa-blue rounded-lg p-1">
-                <img src="/logo/logo.svg" alt="Logo" className="w-full h-full object-contain" />
+                <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
               </div>
               <span className="font-bold text-[10px] text-madrasa-lightgold uppercase leading-tight tracking-wide hidden sm:block">
                 Madrasa<br />Wajihiyah
@@ -98,6 +100,7 @@ export default function App() {
                 {activeTab === 'dashboard' && <Dashboard />}
                 {activeTab === 'attendance' && <Attendance />}
                 {activeTab === 'leaves' && <Leaves />}
+                {activeTab === 'announcements' && <Announcements />}
                 {activeTab === 'management' && <Management />}
                 {activeTab === 'gallery' && <Gallery />}
               </>
