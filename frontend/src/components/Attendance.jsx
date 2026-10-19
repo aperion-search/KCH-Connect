@@ -318,19 +318,19 @@ export default function Attendance() {
                             <div className="flex items-center gap-1.5 mt-1">
                               <a
                                 href={`tel:${student.phone}`}
-                                className="px-2 py-1 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 flex items-center gap-1 shadow-sm"
+                                className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 shadow-sm transition-colors flex items-center justify-center"
                                 title="Call Parent"
                               >
-                                <i className="fa-solid fa-phone"></i> Call
+                                <i className="fa-solid fa-phone text-sm"></i>
                               </a>
                               <a
                                 href={`https://wa.me/91${student.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`📋 ABSENTEE NOTICE\n\nDear Parents,\n\nYour ward, ${student.name} (${student.grade || 'Class'}), was marked absent on ${date} without prior intimation.\n\nKindly submit a leave request here: https://kch-connect.onrender.com/\n\nKindly ensure your child attends school tomorrow with all pending work completed.\n\nRegards,\nMadrasa Wajihiyah Khachroad (Sender: +91 7737252833)`)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="px-2 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex items-center gap-1 shadow-sm"
+                                className="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm transition-colors flex items-center justify-center"
                                 title="Send WhatsApp Message"
                               >
-                                <i className="fa-brands fa-whatsapp"></i> WhatsApp
+                                <i className="fa-brands fa-whatsapp text-sm"></i>
                               </a>
                             </div>
                           )}
