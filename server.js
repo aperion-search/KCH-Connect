@@ -288,6 +288,11 @@ const emailTransporter = nodemailer.createTransport({
 });
 
 async function sendAbsentEmail(student, date) {
+    const emailPass = process.env.EMAIL_PASSWORD || process.env.GMAIL_PASS;
+    if (!emailPass) {
+        console.log(`[Email Notice] Email password not configured in .env (EMAIL_PASSWORD). Simulated email for ${student.name} to ${student.email || 'kchmwajihiyah@gmail.com'}`);
+        return;
+    }
     const recipient = student.email || student.parentEmail || 'kchmwajihiyah@gmail.com';
     try {
         await emailTransporter.sendMail({
@@ -330,10 +335,17 @@ Regards,
 Madrasa Wajihiyah Khachroad (Sender: +91 7737252833)`;
 
         try {
-            if (client && typeof client.sendMessage === 'function') {
-                await client.sendMessage(formattedNumber, message);
-                console.log(`[${i + 1}/${absentList.length}] Sent WhatsApp absent alert to ${student.name} (${cleanPhone}) from +91 7737252833`);
-            } else {
+            let sentViaWhatsApp = false;
+            if (client && client.info && client.pupPage && typeof client.sendMessage === 'function') {
+                try {
+                    await client.sendMessage(formattedNumber, message);
+                    console.log(`[${i + 1}/${absentList.length}] Sent WhatsApp absent alert to ${student.name} (${cleanPhone}) from +91 7737252833`);
+                    sentViaWhatsApp = true;
+                } catch (innerErr) {
+                    console.log(`[WhatsApp] sendMessage error (${innerErr.message}), falling back to simulation.`);
+                }
+            }
+            if (!sentViaWhatsApp) {
                 console.log(`[WhatsApp Simulation] [${i + 1}/${absentList.length}] From: +91 7737252833 To: ${cleanPhone}\nMessage:\n${message}\n-------------------`);
             }
         } catch (err) {
