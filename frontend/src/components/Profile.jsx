@@ -42,7 +42,15 @@ export default function Profile() {
     }
   };
 
-  const handlePhotoChange = async (e) => {
+  const handleDeletePhoto = async () => {
+    if (currentUser.role === 'parent' && userData) {
+      await updateStudent(userData.id || userData.rollId, {
+        ...userData,
+        photo: ''
+      });
+      showToast('Profile photo removed successfully!');
+    }
+  };
     const file = e.target.files[0];
     if (!file) return;
 
@@ -101,7 +109,17 @@ export default function Profile() {
             <h2 className="text-2xl font-bold text-gray-900">{currentUser.name}</h2>
             <p className="text-sm text-gray-500 capitalize">Role: <span className="font-semibold text-gray-800">{currentUser.role}</span></p>
             {currentUser.role === 'parent' && (
-              <p className="text-xs text-madrasa-gold font-semibold mt-1">Click your photo to update profile picture</p>
+              <div className="flex items-center gap-3 mt-1">
+                <p className="text-xs text-madrasa-gold font-semibold">Click your photo to update profile picture</p>
+                {userData?.photo && (
+                  <button
+                    onClick={handleDeletePhoto}
+                    className="text-xs text-red-600 hover:text-red-700 font-bold underline cursor-pointer"
+                  >
+                    Remove Photo
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>

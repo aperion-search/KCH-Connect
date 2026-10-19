@@ -4,6 +4,7 @@ const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
+const nodemailer = require('nodemailer');
 const { exec } = require('child_process');
 const util = require('util');
 const execAsync = util.promisify(exec);
@@ -231,6 +232,31 @@ app.delete('/api/teachers/:id', (req, res) => {
     }
 });
 
+// --- Email Notification Setup ---
+const nodemailer = require('nodemailer');
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER || 'kchmwajihiyah@gmail.com',
+        pass: process.env.EMAIL_PASS || process.env.MAIL_PASS || ''
+    }
+});
+
+async function sendAbsentEmail(student, date) {
+    if (!student.email) return;
+    try {
+        await transporter.sendMail({
+            from: '"Madrasa Wajihiyah Khachroad" <kchmwajihiyah@gmail.com>',
+            to: student.email,
+            subject: `Absentee Notice for ${student.name} - ${date}`,
+            text: `Dear Parents,\n\nYour ward, ${student.name} (${student.grade || 'Class'}), was marked absent on ${date} without prior intimation.\n\nRegular attendance is essential for academic progress. Kindly submit a leave request here: https://kch-connect.onrender.com/\n\nKindly ensure your child attends school tomorrow with all pending work completed.\n\nRegards,\nMadrasa Wajihiyah Khachroad`
+        });
+        console.log(`[Email] Absent notice sent to ${student.email} for ${student.name}`);
+    } catch (e) {
+        console.error(`[Email] Failed to send absent email to ${student.email}:`, e.message);
+    }
+}
+
 // --- WhatsApp Automated Alerts Setup ---
 let client = null;
 try {
@@ -253,12 +279,41 @@ try {
     console.log('[WhatsApp] whatsapp-web.js not active:', e.message);
 }
 
+// Email transporter configuration (kchmwajihiyah@gmail.com)
+const emailTransporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: 'kchmwajihiyah@gmail.com',
+        pass: process.env.EMAIL_PASSWORD || process.env.GMAIL_PASS || ''
+    }
+});
+
+async function sendAbsentEmail(student, date) {
+    const recipient = student.email || student.parentEmail;
+    if (!recipient) return;
+    try {
+        await emailTransporter.sendMail({
+            from: '"Madrasa Wajihiyah Khachroad" <kchmwajihiyah@gmail.com>',
+            to: recipient,
+            subject: `Absence Notice for ${student.name} - ${date}`,
+            text: `Dear Parents,\n\nYour ward, ${student.name} (${student.grade || 'Class'}), was marked absent on ${date} without prior intimation.\n\nKindly submit a leave request via KCH Connect: https://kch-connect.onrender.com/\n\nRegards,\nMadrasa Wajihiyah Khachroad`
+        });
+        console.log(`[Email] Sent absence email to ${recipient} for ${student.name}`);
+    } catch (e) {
+        console.error(`[Email] Failed to send email to ${recipient}:`, e.message);
+    }
+}
+
 // Helper to create random delays between requests
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function sendBatchAbsentAlerts(absentList, date = new Date().toISOString().split('T')[0]) {
     for (let i = 0; i < absentList.length; i++) {
         const student = absentList[i];
+
+        // Send email notification via kchmwajihiyah@gmail.com
+        await sendAbsentEmail(student, date);
+
         const cleanPhone = (student.phone || '').replace(/[^0-9]/g, '');
         if (!cleanPhone) continue;
         const formattedNumber = `${cleanPhone.startsWith('91') ? cleanPhone : '91' + cleanPhone}@c.us`;
@@ -274,14 +329,14 @@ Regular attendance is essential for academic progress. Kindly submit a leave req
 Kindly ensure your child attends school tomorrow with all pending work completed. Kindly acknowledge this message.
 
 Regards,
-Madrasa Wajihiyah Khachroad`;
+Madrasa Wajihiyah Khachroad (Sender: +91 7737252833)`;
 
         try {
             if (client && typeof client.sendMessage === 'function') {
                 await client.sendMessage(formattedNumber, message);
-                console.log(`[${i + 1}/${absentList.length}] Sent WhatsApp absent alert to ${student.name} (${cleanPhone})`);
+                console.log(`[${i + 1}/${absentList.length}] Sent WhatsApp absent alert to ${student.name} (${cleanPhone}) from +91 7737252833`);
             } else {
-                console.log(`[WhatsApp Simulation] [${i + 1}/${absentList.length}] To: ${cleanPhone}\nMessage:\n${message}\n-------------------`);
+                console.log(`[WhatsApp Simulation] [${i + 1}/${absentList.length}] From: +91 7737252833 To: ${cleanPhone}\nMessage:\n${message}\n-------------------`);
             }
         } catch (err) {
             console.error(`Failed for ${student.name}:`, err.message);
@@ -292,7 +347,7 @@ Madrasa Wajihiyah Khachroad`;
         await sleep(randomDelay);
     }
 
-    console.log(`All ${absentList.length} attendance messages completed safely!`);
+    console.log(`All ${absentList.length} attendance absence alerts completed safely!`);
 }
 
 // --- Attendance Routes ---

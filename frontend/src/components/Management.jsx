@@ -56,6 +56,9 @@ export default function Management() {
     photo: ''
   });
 
+  const [selectedStudentForDetails, setSelectedStudentForDetails] = useState(null);
+  const [isModalEditOpen, setIsModalEditOpen] = useState(false);
+
   // Teacher Management State
   const [teacherForm, setTeacherForm] = useState({
     id: '',
@@ -82,6 +85,7 @@ export default function Management() {
     });
     setIsEditing(false);
     setEditingItem(null);
+    setIsModalEditOpen(false);
   };
 
   const resetTeacherForm = () => {
@@ -115,6 +119,7 @@ export default function Management() {
     }
 
     resetStudentForm();
+    setIsModalEditOpen(false);
   };
 
   const handleStudentPhotoUpload = async (e) => {
@@ -157,7 +162,7 @@ export default function Management() {
     });
     setEditingItem(student);
     setIsEditing(true);
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    setIsModalEditOpen(true);
   };
 
   const handleResetPassword = async (student) => {
@@ -230,7 +235,17 @@ export default function Management() {
         <form onSubmit={handleStudentSubmit} className="space-y-4">
           <div className="flex items-center gap-4 mb-4">
             {studentForm.photo ? (
-              <img src={studentForm.photo} alt="Student" className="w-16 h-16 rounded-full object-cover border border-madrasa-gold shadow" />
+              <div className="relative group">
+                <img src={studentForm.photo} alt="Student" className="w-16 h-16 rounded-full object-cover border border-madrasa-gold shadow" />
+                <button
+                  type="button"
+                  onClick={() => setStudentForm(prev => ({ ...prev, photo: '' }))}
+                  className="absolute -top-1 -right-1 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs hover:bg-red-700 shadow"
+                  title="Remove photo"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
             ) : (
               <div className="w-16 h-16 rounded-full bg-madrasa-gold/20 flex items-center justify-center text-madrasa-gold font-bold text-xl border border-madrasa-gold shadow">
                 {studentForm.name ? studentForm.name.charAt(0) : 'S'}
@@ -238,12 +253,23 @@ export default function Management() {
             )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Student Photo</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleStudentPhotoUpload}
-                className="text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 cursor-pointer"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleStudentPhotoUpload}
+                  className="text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 cursor-pointer"
+                />
+                {studentForm.photo && (
+                  <button
+                    type="button"
+                    onClick={() => setStudentForm(prev => ({ ...prev, photo: '' }))}
+                    className="px-2.5 py-1 bg-red-50 text-red-600 text-xs font-bold rounded-lg hover:bg-red-100 transition"
+                  >
+                    Delete Photo
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -506,7 +532,13 @@ export default function Management() {
                         </div>
                       )}
                       <div>
-                        <p className="font-medium text-gray-900 text-sm sm:text-base">{student.name}</p>
+                        <p
+                          className="font-medium text-gray-900 text-sm sm:text-base cursor-pointer hover:text-primary-600 transition"
+                          onClick={() => setSelectedStudentForDetails(student)}
+                          title="Click to view full student details"
+                        >
+                          {student.name}
+                        </p>
                         <p className="text-xs text-gray-400">{student.phone || student.contactNos || 'No Phone'}</p>
                       </div>
                     </div>
@@ -707,6 +739,57 @@ export default function Management() {
         </h2>
         {renderForm()}
       </div>
+
+      {/* Student Details Popup Modal */}
+      {selectedStudentForDetails && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-fade-in p-6">
+            <div className="flex justify-between items-center pb-4 border-b border-gray-100 mb-4">
+              <h3 className="text-xl font-bold text-gray-900">Student Full Details</h3>
+              <button onClick={() => setSelectedStudentForDetails(null)} className="text-gray-400 hover:text-gray-700 p-2 text-lg"><i className="fa-solid fa-xmark"></i></button>
+            </div>
+            <div className="flex flex-col items-center mb-6">
+              {selectedStudentForDetails.photo ? (
+                <img src={selectedStudentForDetails.photo} alt={selectedStudentForDetails.name} className="w-24 h-24 rounded-full object-cover border-2 border-madrasa-gold shadow-md mb-3" />
+              ) : (
+                <div className="w-24 h-24 rounded-full bg-madrasa-gold/20 flex items-center justify-center text-madrasa-gold font-bold text-4xl border-2 border-madrasa-gold shadow-md mb-3">
+                  {selectedStudentForDetails.name.charAt(0)}
+                </div>
+              )}
+              <h4 className="text-2xl font-bold text-gray-900">{selectedStudentForDetails.name}</h4>
+              <p className="text-sm font-semibold text-primary-600">Roll / ITS ID: {selectedStudentForDetails.rollId}</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm bg-gray-50 p-4 rounded-xl border border-gray-100 mb-6">
+              <div><label className="text-gray-400 block mb-1">Class / Grade</label><p className="font-medium text-gray-900">{selectedStudentForDetails.grade || '-'}</p></div>
+              <div><label className="text-gray-400 block mb-1">Division</label><p className="font-medium text-gray-900">{selectedStudentForDetails.division || '-'}</p></div>
+              <div><label className="text-gray-400 block mb-1">Gender</label><p className="font-medium text-gray-900">{selectedStudentForDetails.gender || '-'}</p></div>
+              <div><label className="text-gray-400 block mb-1">Phone</label><p className="font-medium text-gray-900">{selectedStudentForDetails.phone || '-'}</p></div>
+              <div><label className="text-gray-400 block mb-1">Email</label><p className="font-medium text-gray-900">{selectedStudentForDetails.email || '-'}</p></div>
+              <div><label className="text-gray-400 block mb-1">Hifz Status</label><span className="px-2.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full font-bold">{selectedStudentForDetails.hifzStatus || 'Not Set'}</span></div>
+              <div><label className="text-gray-400 block mb-1">Date of Birth</label><p className="font-medium text-gray-900">{selectedStudentForDetails.hdob || '-'}</p></div>
+              <div><label className="text-gray-400 block mb-1">Password</label><p className="font-mono text-xs bg-white px-2 py-1 rounded border border-gray-200 inline-block">{selectedStudentForDetails.password || '515253'}</p></div>
+              <div className="col-span-full"><label className="text-gray-400 block mb-1">Arabic Name</label><p className="text-xl font-bold text-gray-900" style={{fontFamily:'"Kanz-al-Marjaan", serif'}}>{selectedStudentForDetails.arabicName || '-'}</p></div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => { const s = selectedStudentForDetails; setSelectedStudentForDetails(null); handleStudentEdit(s); }} className="px-5 py-2.5 bg-primary-600 text-white font-bold rounded-xl text-sm hover:bg-primary-700 transition">Edit Student</button>
+              <button onClick={() => setSelectedStudentForDetails(null)} className="px-5 py-2.5 bg-gray-200 text-gray-700 font-bold rounded-xl text-sm hover:bg-gray-300 transition">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Student/Teacher Edit Modal Popup */}
+      {isModalEditOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-fade-in p-6">
+            <div className="flex justify-between items-center pb-4 border-b border-gray-100 mb-4">
+              <h3 className="text-xl font-bold text-gray-900">Edit {activeTab === 'students' ? 'Student' : 'Teacher'}</h3>
+              <button onClick={() => resetStudentForm()} className="text-gray-400 hover:text-gray-700 p-2 text-lg"><i className="fa-solid fa-xmark"></i></button>
+            </div>
+            {renderForm()}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
