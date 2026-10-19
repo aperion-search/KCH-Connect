@@ -262,7 +262,12 @@ try {
     const { Client, LocalAuth } = require('whatsapp-web.js');
     const qrcode = require('qrcode-terminal');
     client = new Client({
-        authStrategy: new LocalAuth()
+        authStrategy: new LocalAuth(),
+        puppeteer: {
+            headless: true,
+            executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
+        }
     });
     client.on('qr', (qr) => {
         console.log('[WhatsApp] QR RECEIVED, scan please:');
