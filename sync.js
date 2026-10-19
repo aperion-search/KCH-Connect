@@ -93,8 +93,12 @@ async function loadDataFromMega(type) {
                 if (err) reject(err);
                 else resolve(data);
             });
+        }).catch(err => {
+            console.warn(`[SYNC - Mega] Notice: Could not download ${type}.json from Mega (${err.message}). Using local default.`);
+            return null;
         });
 
+        if (!dataBuffer) return null;
         return JSON.parse(dataBuffer.toString('utf8'));
     } catch (e) {
         console.error(`[SYNC - Mega] Error loading ${type} from Mega:`, e.message);
