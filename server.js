@@ -83,20 +83,23 @@ function writeJSON(file, data) {
 async function initializeDataFromHF() {
     // Automatically mount HF bucket when running locally (WSL / non-Render)
     if (!process.env.RENDER) {
-        console.log(`[STARTUP] Local environment detected (not Render). Attempting automatic HF Bucket mount...`);
+        console.log(`[STARTUP] Local environment detected (not Render). Attempting automatic HF Bucket mount via hf-mount...`);
         try {
             const token = process.env.HF_TOKEN || process.env.HUGGINGFACE_TOKEN;
             if (token) {
-                await execAsync(`huggingface-cli mount KCH-Wajihiyah/KCH-M-connect ./data --repo-type dataset`, { timeout: 10000 });
-                console.log(`[STARTUP] Successfully mounted HF Bucket to ./data via huggingface-cli.`);
+                if (!fs.existsSync(DATA_DIR)) {
+                    fs.mkdirSync(DATA_DIR, { recursive: true });
+                }
+                await execAsync(`hf-mount KCH-Wajihiyah/KCH-M-connect ./data`, { timeout: 15000 });
+                console.log(`[STARTUP] Successfully mounted HF Bucket to ./data via hf-mount.`);
             } else {
                 console.log(`[STARTUP] HF_TOKEN not set, skipping automatic mount attempt.`);
             }
         } catch (mountErr) {
-            console.log(`[STARTUP] Automatic HF mount note: ${mountErr.message}. Falling back to standard REST API sync/restore.`);
+            console.log(`[STARTUP] hf-mount note: ${mountErr.message}. Falling back to standard sync/restore.`);
         }
     } else {
-        console.log(`[STARTUP] Render environment detected. Skipping WSL/local mount, using REST API sync.`);
+        console.log(`[STARTUP] Render environment detected. Skipping local mount, using REST API sync.`);
     }
 
     const dataTypes = [
