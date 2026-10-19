@@ -285,14 +285,36 @@ export default function Attendance() {
                         </span>
                       </td>
                       <td className="px-4 sm:px-6 py-4 text-center align-middle">
-                        <span className={`px-3 py-1.5 rounded-xl text-xs font-bold inline-block shadow-sm ${
-                          currentStatus === 'Present' ? 'bg-green-50 text-green-700 border border-green-200' :
-                          currentStatus === 'Absent' ? 'bg-red-50 text-red-700 border border-red-200' :
-                          currentStatus === 'Leave' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                          'bg-gray-50 text-gray-700 border border-gray-200'
-                        }`}>
-                          {currentStatus}
-                        </span>
+                        <div className="flex flex-col items-center gap-2">
+                          <span className={`px-3 py-1.5 rounded-xl text-xs font-bold inline-block shadow-sm ${
+                            currentStatus === 'Present' ? 'bg-green-50 text-green-700 border border-green-200' :
+                            currentStatus === 'Absent' ? 'bg-red-50 text-red-700 border border-red-200' :
+                            currentStatus === 'Leave' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                            'bg-gray-50 text-gray-700 border border-gray-200'
+                          }`}>
+                            {currentStatus}
+                          </span>
+                          {currentStatus === 'Absent' && student.phone && student.phone !== '-' && currentUser?.role !== 'parent' && (
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <a
+                                href={`tel:${student.phone}`}
+                                className="px-2 py-1 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 flex items-center gap-1 shadow-sm"
+                                title="Call Parent"
+                              >
+                                <i className="fa-solid fa-phone"></i> Call
+                              </a>
+                              <a
+                                href={`https://wa.me/91${student.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`📋 ABSENTEE NOTICE\n\nDear Parents,\n\nYour ward, ${student.name} (${student.grade || 'Class'}), was marked absent on ${date} without prior intimation.\n\nKindly submit a leave request here: https://kch-connect.onrender.com/\n\nKindly ensure your child attends school tomorrow with all pending work completed.\n\nRegards,\nMadrasa Wajihiyah Khachroad (Sender: +91 7737252833)`)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex items-center gap-1 shadow-sm"
+                                title="Send WhatsApp Message"
+                              >
+                                <i className="fa-brands fa-whatsapp"></i> WhatsApp
+                              </a>
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

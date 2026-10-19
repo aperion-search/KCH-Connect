@@ -312,59 +312,6 @@ async function sendAbsentEmail(student, date) {
     }
 }
 
-// Helper to create random delays between requests
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-async function sendBatchAbsentAlerts(absentList, date = new Date().toISOString().split('T')[0]) {
-    for (let i = 0; i < absentList.length; i++) {
-        const student = absentList[i];
-
-        // Send email notification via kchmwajihiyah@gmail.com
-        await sendAbsentEmail(student, date);
-
-        const cleanPhone = (student.phone || '').replace(/[^0-9]/g, '');
-        if (!cleanPhone) continue;
-        const formattedNumber = `${cleanPhone.startsWith('91') ? cleanPhone : '91' + cleanPhone}@c.us`;
-
-        const message = `📋 ABSENTEE NOTICE
-
-Dear Parents,
-
-Your ward, ${student.name} (${student.grade || 'Class'}), was marked absent on ${date} without prior intimation.
-
-Regular attendance is essential for academic progress. Kindly submit a leave request here: https://kch-connect.onrender.com/
-
-Kindly ensure your child attends school tomorrow with all pending work completed. Kindly acknowledge this message.
-
-Regards,
-Madrasa Wajihiyah Khachroad (Sender: +91 7737252833)`;
-
-        try {
-            let sentViaWhatsApp = false;
-            if (client && client.info && client.pupPage && typeof client.sendMessage === 'function') {
-                try {
-                    await client.sendMessage(formattedNumber, message);
-                    console.log(`[${i + 1}/${absentList.length}] Sent WhatsApp absent alert to ${student.name} (${cleanPhone}) from +91 7737252833`);
-                    sentViaWhatsApp = true;
-                } catch (innerErr) {
-                    console.log(`[WhatsApp] sendMessage error (${innerErr.message}), falling back to simulation.`);
-                }
-            }
-            if (!sentViaWhatsApp) {
-                console.log(`[WhatsApp Simulation] [${i + 1}/${absentList.length}] From: +91 7737252833 To: ${cleanPhone}\nMessage:\n${message}\n-------------------`);
-            }
-        } catch (err) {
-            console.error(`Failed for ${student.name}:`, err.message);
-        }
-
-        // Wait between 3 to 6 seconds before sending the next message
-        const randomDelay = Math.floor(Math.random() * 3000) + 3000;
-        await sleep(randomDelay);
-    }
-
-    console.log(`All ${absentList.length} attendance absence alerts completed safely!`);
-}
-
 // --- Attendance Routes ---
 app.get('/api/attendance', (req, res) => {
     const attendance = readJSON(ATTENDANCE_FILE, {});
@@ -382,29 +329,6 @@ app.post('/api/attendance', (req, res) => {
 
     if (writeJSON(ATTENDANCE_FILE, attendance)) {
         syncData('attendance', attendance);
-
-        // Automatically trigger batch absent alerts for absentees on this date
-        const students = readJSON(STUDENTS_FILE, []);
-        const absentList = [];
-        for (const [studentId, status] of Object.entries(records)) {
-            if (status === 'Absent') {
-                const student = students.find(s => String(s.id) === String(studentId) || String(s.rollId) === String(studentId));
-                if (student && student.phone && student.phone !== '-') {
-                    absentList.push({
-                        phone: student.phone,
-                        name: student.name,
-                        grade: student.grade || 'N/A',
-                        email: student.email,
-                        parentEmail: student.parentEmail
-                    });
-                }
-            }
-        }
-
-        if (absentList.length > 0) {
-            sendBatchAbsentAlerts(absentList, date).catch(e => console.error('Batch WhatsApp error:', e));
-        }
-
         res.json({ success: true, attendance });
     } else {
         res.status(500).json({ error: 'Failed to save attendance.' });
