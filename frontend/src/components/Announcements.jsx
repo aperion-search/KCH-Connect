@@ -7,9 +7,14 @@ export default function Announcements() {
   const [announcements, setAnnouncements] = useState([]);
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
-  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadFiles, setUploadFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [previewItem, setPreviewItem] = useState(null);
+  const [zoom, setZoom] = useState(1);
+
+  useEffect(() => {
+    setZoom(1);
+  }, [previewItem]);
 
   const fetchAnnouncements = async () => {
     try {
@@ -34,54 +39,69 @@ export default function Announcements() {
     }
 
     try {
-      let mediaUrl = null;
-      let mediaType = 'file';
+      const mediaItems = [];
 
-      if (uploadFile) {
-        const reader = new FileReader();
-        const base64Data = await new Promise((resolve, reject) => {
-          reader.onload = (event) => resolve(event.target.result);
-          reader.onerror = (error) => reject(error);
-          reader.readAsDataURL(uploadFile);
-        });
+      if (uploadFiles && uploadFiles.length > 0) {
+        for (const file of uploadFiles) {
+          try {
+            const reader = new FileReader();
+            const base64Data = await new Promise((resolve, reject) => {
+              reader.onload = (event) => resolve(event.target.result);
+              reader.onerror = (error) => reject(error);
+              reader.readAsDataURL(file);
+            });
 
-        const uploadRes = await axios.post('/api/upload', {
-          image: base64Data,
-          filename: uploadFile.name
-        });
-        mediaUrl = uploadRes.data.url;
+            const uploadRes = await axios.post('/api/upload', {
+              image: base64Data,
+              filename: file.name
+            });
+            const mediaUrl = uploadRes.data.url;
 
-        const ext = uploadFile.name.split('.').pop().toLowerCase();
-        if (uploadFile.type.startsWith('image') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) {
-          mediaType = 'photo';
-        } else if (uploadFile.type.startsWith('video') || ['mp4', 'webm', 'ogg', 'mov'].includes(ext)) {
-          mediaType = 'video';
-        } else if (uploadFile.type.startsWith('audio') || ['mp3', 'wav', 'aac'].includes(ext)) {
-          mediaType = 'audio';
-        } else if (['pdf'].includes(ext)) {
-          mediaType = 'pdf';
-        } else if (['doc', 'docx', 'txt', 'rtf'].includes(ext)) {
-          mediaType = 'document';
-        } else if (['xls', 'xlsx', 'csv'].includes(ext)) {
-          mediaType = 'spreadsheet';
-        } else if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
-          mediaType = 'archive';
+            const ext = file.name.split('.').pop().toLowerCase();
+            let mediaType = 'file';
+            if (file.type.startsWith('image') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) {
+              mediaType = 'photo';
+            } else if (file.type.startsWith('video') || ['mp4', 'webm', 'ogg', 'mov'].includes(ext)) {
+              mediaType = 'video';
+            } else if (file.type.startsWith('audio') || ['mp3', 'wav', 'aac'].includes(ext)) {
+              mediaType = 'audio';
+            } else if (['pdf'].includes(ext)) {
+              mediaType = 'pdf';
+            } else if (['doc', 'docx', 'txt', 'rtf'].includes(ext)) {
+              mediaType = 'document';
+            } else if (['xls', 'xlsx', 'csv'].includes(ext)) {
+              mediaType = 'spreadsheet';
+            } else if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+              mediaType = 'archive';
+            }
+
+            mediaItems.push({
+              url: mediaUrl,
+              mediaType,
+              title: file.name
+            });
+          } catch (err) {
+            console.error('Failed to upload announcement file:', file.name, err);
+          }
         }
       }
 
-      const res = await axios.post('/api/announcements', {
+      const payload = {
         title,
         message,
         author: currentUser?.name || 'Admin',
         date: new Date().toISOString().split('T')[0],
-        mediaUrl,
-        mediaType
-      });
+        mediaItems,
+        mediaUrl: mediaItems[0]?.url || null,
+        mediaType: mediaItems[0]?.mediaType || 'file'
+      };
+
+      const res = await axios.post('/api/announcements', payload);
 
       setAnnouncements(prev => [res.data.announcement, ...prev]);
       setTitle('');
       setMessage('');
-      setUploadFile(null);
+      setUploadFiles([]);
       showToast('Announcement posted successfully!');
     } catch (e) {
       console.error('Post error:', e);
@@ -91,7 +111,14 @@ export default function Announcements() {
 
   const handleDelete = async (id, item) => {
     try {
-      if (item?.mediaUrl) {
+      if (item?.mediaItems && item.mediaItems.length > 0) {
+        for (const m of item.mediaItems) {
+          if (m.url) {
+            const filename = m.url.split('/').pop();
+            await axios.delete(`/api/upload/${filename}`).catch(() => {});
+          }
+        }
+      } else if (item?.mediaUrl) {
         const filename = item.mediaUrl.split('/').pop();
         await axios.delete(`/api/upload/${filename}`).catch(() => {});
       }
@@ -103,75 +130,75 @@ export default function Announcements() {
     }
   };
 
-  const renderFileThumbnail = (item) => {
-    const ext = (item.mediaUrl || '').split('.').pop().toLowerCase();
-    const fileName = item.mediaUrl ? item.mediaUrl.split('/').pop() : 'Attachment';
+  const renderAttachment = (att, parentTitle) => {
+    const ext = (att.url || '').split('.').pop().toLowerCase();
+    const fileName = att.title || (att.url ? att.url.split('/').pop() : 'Attachment');
 
-    if (item.mediaType === 'photo' || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) {
+    if (att.mediaType === 'photo' || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) {
       return (
-        <div className="cursor-pointer" onClick={() => setPreviewItem(item)}>
-          <img src={item.mediaUrl} alt={item.title} className="w-full max-h-96 object-contain bg-gray-900 hover:opacity-95 transition" />
+        <div className="cursor-pointer mb-2" onClick={() => setPreviewItem({ ...att, title: parentTitle })}>
+          <img src={att.url} alt={fileName} className="w-full max-h-96 object-contain bg-gray-900 rounded-lg hover:opacity-95 transition" />
         </div>
       );
     }
-    if (item.mediaType === 'video' || ['mp4', 'webm', 'ogg', 'mov'].includes(ext)) {
-      return <video src={item.mediaUrl} controls className="w-full max-h-96 object-contain bg-black" />;
+    if (att.mediaType === 'video' || ['mp4', 'webm', 'ogg', 'mov'].includes(ext)) {
+      return <video src={att.url} controls className="w-full max-h-96 object-contain bg-black rounded-lg mb-2" />;
     }
-    if (item.mediaType === 'audio' || ['mp3', 'wav', 'aac'].includes(ext)) {
+    if (att.mediaType === 'audio' || ['mp3', 'wav', 'aac'].includes(ext)) {
       return (
-        <div className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 p-6 flex flex-col items-center justify-center text-white">
-          <i className="fa-solid fa-music text-3xl mb-2 animate-pulse"></i>
+        <div className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 p-4 rounded-lg flex flex-col items-center justify-center text-white mb-2">
+          <i className="fa-solid fa-music text-2xl mb-1 animate-pulse"></i>
           <p className="text-xs font-semibold mb-2">{fileName}</p>
-          <audio src={item.mediaUrl} controls className="w-full max-w-md" />
+          <audio src={att.url} controls className="w-full max-w-md" />
         </div>
       );
     }
-    if (item.mediaType === 'pdf' || ['pdf'].includes(ext)) {
+    if (att.mediaType === 'pdf' || ['pdf'].includes(ext)) {
       return (
-        <div onClick={() => setPreviewItem(item)} className="w-full bg-red-50 p-6 flex items-center justify-between text-red-600 border-t border-red-100 cursor-pointer hover:bg-red-100/60 transition">
+        <div onClick={() => setPreviewItem({ ...att, title: parentTitle })} className="w-full bg-red-50 p-4 rounded-lg flex items-center justify-between text-red-600 border border-red-100 cursor-pointer hover:bg-red-100/60 transition mb-2">
           <div className="flex items-center gap-3">
-            <i className="fa-solid fa-file-pdf text-4xl"></i>
+            <i className="fa-solid fa-file-pdf text-3xl"></i>
             <div>
-              <p className="font-bold text-sm text-red-800">PDF Document Attachment</p>
+              <p className="font-bold text-sm text-red-800">PDF Document</p>
               <p className="text-xs text-red-600">{fileName} — Click to Preview</p>
             </div>
           </div>
-          <span className="px-3 py-1 bg-red-200 text-red-800 text-xs font-bold rounded-lg">Preview PDF</span>
+          <span className="px-3 py-1 bg-red-200 text-red-800 text-xs font-bold rounded-lg">Preview</span>
         </div>
       );
     }
-    if (item.mediaType === 'document' || ['doc', 'docx', 'txt', 'rtf'].includes(ext)) {
+    if (att.mediaType === 'document' || ['doc', 'docx', 'txt', 'rtf'].includes(ext)) {
       return (
-        <div onClick={() => setPreviewItem(item)} className="w-full bg-blue-50 p-6 flex items-center justify-between text-blue-600 border-t border-blue-100 cursor-pointer hover:bg-blue-100/60 transition">
+        <div onClick={() => setPreviewItem({ ...att, title: parentTitle })} className="w-full bg-blue-50 p-4 rounded-lg flex items-center justify-between text-blue-600 border border-blue-100 cursor-pointer hover:bg-blue-100/60 transition mb-2">
           <div className="flex items-center gap-3">
-            <i className="fa-solid fa-file-lines text-4xl"></i>
+            <i className="fa-solid fa-file-lines text-3xl"></i>
             <div>
-              <p className="font-bold text-sm text-blue-800">Document Attachment</p>
+              <p className="font-bold text-sm text-blue-800">Document</p>
               <p className="text-xs text-blue-600">{fileName} — Click to View</p>
             </div>
           </div>
-          <span className="px-3 py-1 bg-blue-200 text-blue-800 text-xs font-bold rounded-lg">View Document</span>
+          <span className="px-3 py-1 bg-blue-200 text-blue-800 text-xs font-bold rounded-lg">View</span>
         </div>
       );
     }
-    if (item.mediaType === 'spreadsheet' || ['xls', 'xlsx', 'csv'].includes(ext)) {
+    if (att.mediaType === 'spreadsheet' || ['xls', 'xlsx', 'csv'].includes(ext)) {
       return (
-        <div onClick={() => setPreviewItem(item)} className="w-full bg-emerald-50 p-6 flex items-center justify-between text-emerald-600 border-t border-emerald-100 cursor-pointer hover:bg-emerald-100/60 transition">
+        <div onClick={() => setPreviewItem({ ...att, title: parentTitle })} className="w-full bg-emerald-50 p-4 rounded-lg flex items-center justify-between text-emerald-600 border border-emerald-100 cursor-pointer hover:bg-emerald-100/60 transition mb-2">
           <div className="flex items-center gap-3">
-            <i className="fa-solid fa-file-excel text-4xl"></i>
+            <i className="fa-solid fa-file-excel text-3xl"></i>
             <div>
-              <p className="font-bold text-sm text-emerald-800">Spreadsheet Attachment</p>
+              <p className="font-bold text-sm text-emerald-800">Spreadsheet</p>
               <p className="text-xs text-emerald-600">{fileName} — Click to View</p>
             </div>
           </div>
-          <span className="px-3 py-1 bg-emerald-200 text-emerald-800 text-xs font-bold rounded-lg">View Spreadsheet</span>
+          <span className="px-3 py-1 bg-emerald-200 text-emerald-800 text-xs font-bold rounded-lg">View</span>
         </div>
       );
     }
     return (
-      <div onClick={() => setPreviewItem(item)} className="w-full bg-gray-50 p-6 flex items-center justify-between text-gray-700 border-t border-gray-200 cursor-pointer hover:bg-gray-100 transition">
+      <div onClick={() => setPreviewItem({ ...att, title: parentTitle })} className="w-full bg-gray-50 p-4 rounded-lg flex items-center justify-between text-gray-700 border border-gray-200 cursor-pointer hover:bg-gray-100 transition mb-2">
         <div className="flex items-center gap-3">
-          <i className="fa-solid fa-file-arrow-down text-4xl text-primary-600"></i>
+          <i className="fa-solid fa-file-arrow-down text-3xl text-primary-600"></i>
           <div>
             <p className="font-bold text-sm text-gray-800">File Attachment</p>
             <p className="text-xs text-gray-500">{fileName} — Click to View</p>
@@ -187,7 +214,7 @@ export default function Announcements() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Announcements & Notices</h1>
-          <p className="text-gray-500 mt-1 text-sm">Madrasa notices, updates, and universal file attachments</p>
+          <p className="text-gray-500 mt-1 text-sm">Madrasa notices, updates, and multiple file attachments</p>
         </div>
       </div>
 
@@ -218,18 +245,22 @@ export default function Announcements() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Attach File (Any format: PDF, Word, Excel, Images, ZIP, etc.)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Attach Files (Multiple files supported: PDF, Word, Excel, Images, ZIP, etc.)</label>
               <input
                 type="file"
-                onChange={(e) => setUploadFile(e.target.files[0])}
+                multiple
+                onChange={(e) => setUploadFiles(Array.from(e.target.files || []))}
                 className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 cursor-pointer"
               />
+              {uploadFiles.length > 0 && (
+                <p className="text-xs text-primary-600 font-semibold mt-1">Selected {uploadFiles.length} file(s) for upload.</p>
+              )}
             </div>
             <button
               type="submit"
               className="px-6 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium text-sm transition-colors cursor-pointer"
             >
-              Post Announcement
+              Post Announcement {uploadFiles.length > 0 ? `(${uploadFiles.length} attachments)` : ''}
             </button>
           </form>
         </div>
@@ -239,38 +270,47 @@ export default function Announcements() {
         {loading ? (
           <div className="text-center py-12 text-gray-500">Loading announcements...</div>
         ) : announcements.length > 0 ? (
-          announcements.map(item => (
-            <div key={item.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative">
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">{item.title}</h3>
-                    <p className="text-xs text-gray-400 mt-0.5">By {item.author || 'Admin'} • {item.date}</p>
+          announcements.map(item => {
+            const attachments = item.mediaItems && item.mediaItems.length > 0
+              ? item.mediaItems
+              : (item.mediaUrl ? [{ url: item.mediaUrl, mediaType: item.mediaType, title: item.title }] : []);
+
+            return (
+              <div key={item.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative">
+                <div className="p-6">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">{item.title}</h3>
+                      <p className="text-xs text-gray-400 mt-0.5">By {item.author || 'Admin'} • {item.date}</p>
+                    </div>
+                    {currentUser?.role === 'admin' && (
+                      <button
+                        onClick={() => handleDelete(item.id, item)}
+                        className="text-red-500 hover:text-red-700 p-2 cursor-pointer"
+                        title="Delete Announcement"
+                      >
+                        <i className="fa-solid fa-trash-can"></i>
+                      </button>
+                    )}
                   </div>
-                  {currentUser?.role === 'admin' && (
-                    <button
-                      onClick={() => handleDelete(item.id, item)}
-                      className="text-red-500 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
-                      title="Delete Announcement"
-                    >
-                      <i className="fa-solid fa-trash-can text-sm"></i>
-                    </button>
+                  <p className="text-gray-700 whitespace-pre-wrap text-sm mb-4">{item.message}</p>
+
+                  {attachments.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      {attachments.map((att, idx) => (
+                        <div key={idx}>
+                          {renderAttachment(att, item.title)}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
-                <p className="text-gray-700 whitespace-pre-wrap mt-3 text-sm leading-relaxed">{item.message}</p>
               </div>
-
-              {item.mediaUrl && (
-                <div className="border-t border-gray-100 bg-gray-50">
-                  {renderFileThumbnail(item)}
-                </div>
-              )}
-            </div>
-          ))
+            );
+          })
         ) : (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center text-gray-500">
-            <i className="fa-solid fa-bullhorn text-4xl text-gray-300 mb-3"></i>
-            <p className="text-base font-medium">No announcements yet</p>
+          <div className="text-center py-12 text-gray-500 bg-white rounded-2xl border border-gray-100">
+            No announcements yet.
           </div>
         )}
       </div>
@@ -278,20 +318,36 @@ export default function Announcements() {
       {/* Preview Modal */}
       {previewItem && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-fade-in">
             <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-              <h3 className="font-bold text-gray-800 truncate">{previewItem.title}</h3>
-              <button onClick={() => setPreviewItem(null)} className="text-gray-500 hover:text-gray-800 p-2 text-lg"><i className="fa-solid fa-xmark"></i></button>
+              <h3 className="font-bold text-gray-800 truncate">{previewItem.title || 'Preview'}</h3>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setZoom(z => Math.max(0.5, z - 0.25))} className="px-2.5 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer" title="Zoom Out"><i className="fa-solid fa-magnifying-glass-minus"></i></button>
+                <span className="text-xs font-bold text-gray-700 w-12 text-center">{Math.round(zoom * 100)}%</span>
+                <button onClick={() => setZoom(z => Math.min(3, z + 0.25))} className="px-2.5 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer" title="Zoom In"><i className="fa-solid fa-magnifying-glass-plus"></i></button>
+                <button onClick={() => setZoom(1)} className="px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-bold transition cursor-pointer" title="Reset Zoom"><i className="fa-solid fa-rotate-right"></i></button>
+                <button onClick={() => setPreviewItem(null)} className="text-gray-500 hover:text-gray-800 p-2 text-lg cursor-pointer ml-2"><i className="fa-solid fa-xmark"></i></button>
+              </div>
             </div>
-            <div className="p-6 flex-1 overflow-auto flex items-center justify-center bg-gray-900 min-h-[350px]">
-              {previewItem.mediaUrl?.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) || previewItem.mediaType === 'photo' ? (
-                <img src={previewItem.mediaUrl} alt={previewItem.title} className="max-h-[70vh] object-contain rounded-lg" />
-              ) : previewItem.mediaUrl?.match(/\.pdf$/i) || previewItem.mediaType === 'pdf' ? (
-                <iframe src={previewItem.mediaUrl} title={previewItem.title} className="w-full h-[65vh] rounded-lg bg-white" />
+            <div className="p-6 flex-1 overflow-auto flex items-center justify-center bg-gray-900 min-h-[400px]">
+              {previewItem.url.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) || previewItem.mediaType === 'photo' ? (
+                <img
+                  src={previewItem.url}
+                  alt={previewItem.title}
+                  style={{ transform: `scale(${zoom})`, transition: 'transform 0.2s ease' }}
+                  className="max-h-[70vh] object-contain rounded-lg"
+                />
+              ) : previewItem.url.match(/\.pdf$/i) || previewItem.mediaType === 'pdf' ? (
+                <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top center', transition: 'transform 0.2s ease' }} className="w-full flex items-center justify-center">
+                  <iframe src={previewItem.url} title={previewItem.title} className="w-full h-[65vh] rounded-lg bg-white" />
+                </div>
               ) : (
-                <div className="text-center text-white py-12">
+                <div className="text-center text-white py-12" style={{ transform: `scale(${zoom})`, transition: 'transform 0.2s ease' }}>
                   <i className="fa-solid fa-file-arrow-down text-6xl text-primary-400 mb-4"></i>
-                  <p className="text-lg font-medium mb-4">Attachment file ready</p>
+                  <p className="text-lg font-medium mb-4">File preview available</p>
+                  <a href={previewItem.url} target="_blank" rel="noopener noreferrer" className="px-5 py-2.5 bg-primary-600 text-white rounded-xl font-bold text-sm shadow hover:bg-primary-700 transition">
+                    Download / Open File
+                  </a>
                 </div>
               )}
             </div>

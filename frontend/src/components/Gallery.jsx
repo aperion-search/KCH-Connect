@@ -7,9 +7,14 @@ export default function Gallery() {
   const [folders, setFolders] = useState([]);
   const [newFolder, setNewFolder] = useState('');
   const [selectedFolder, setSelectedFolder] = useState(null);
-  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadFiles, setUploadFiles] = useState([]);
   const [previewItem, setPreviewItem] = useState(null);
+  const [zoom, setZoom] = useState(1);
   const isAdmin = currentUser?.role === 'admin';
+
+  React.useEffect(() => {
+    setZoom(1);
+  }, [previewItem]);
 
   React.useEffect(() => {
     if (gallery && gallery.length > 0) {
@@ -58,24 +63,30 @@ export default function Gallery() {
     showToast('Item deleted');
   };
 
-  const handleUpload = () => {
-    if (!uploadFile || !selectedFolder) return;
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const base64Url = e.target.result;
+  const handleUpload = async () => {
+    if (!uploadFiles || uploadFiles.length === 0 || !selectedFolder) return;
+    const newItems = [];
+    for (const file of uploadFiles) {
       try {
+        const reader = new FileReader();
+        const base64Url = await new Promise((resolve, reject) => {
+          reader.onload = (e) => resolve(e.target.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
         const res = await axios.post('/api/upload', {
           image: base64Url,
-          filename: uploadFile.name
+          filename: file.name
         });
         const mediaUrl = res.data.url;
-        const ext = uploadFile.name.split('.').pop().toLowerCase();
+        const ext = file.name.split('.').pop().toLowerCase();
         let fileType = 'file';
-        if (uploadFile.type.startsWith('image') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) {
+        if (file.type.startsWith('image') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) {
           fileType = 'photo';
-        } else if (uploadFile.type.startsWith('video') || ['mp4', 'webm', 'ogg', 'mov'].includes(ext)) {
+        } else if (file.type.startsWith('video') || ['mp4', 'webm', 'ogg', 'mov'].includes(ext)) {
           fileType = 'video';
-        } else if (uploadFile.type.startsWith('audio') || ['mp3', 'wav', 'aac'].includes(ext)) {
+        } else if (file.type.startsWith('audio') || ['mp3', 'wav', 'aac'].includes(ext)) {
           fileType = 'audio';
         } else if (['pdf'].includes(ext)) {
           fileType = 'pdf';
@@ -87,23 +98,26 @@ export default function Gallery() {
           fileType = 'archive';
         }
 
-        const newItem = {
-          id: Date.now(),
+        newItems.push({
+          id: Date.now() + Math.random(),
           type: fileType,
           url: mediaUrl,
-          title: uploadFile.name
-        };
-        const updated = folders.map(f => f.id === selectedFolder ? { ...f, items: [...f.items, newItem] } : f);
-        setFolders(updated);
-        saveGallery(updated);
-        setUploadFile(null);
-        showToast('File uploaded and synced successfully!');
+          title: file.name
+        });
       } catch (err) {
-        console.error('Upload error:', err);
-        showToast('Failed to upload file', 'error');
+        console.error('Upload error for file:', file.name, err);
       }
-    };
-    reader.readAsDataURL(uploadFile);
+    }
+
+    if (newItems.length > 0) {
+      const updated = folders.map(f => f.id === selectedFolder ? { ...f, items: [...(f.items || []), ...newItems] } : f);
+      setFolders(updated);
+      saveGallery(updated);
+      setUploadFiles([]);
+      showToast(`${newItems.length} file(s) uploaded and synced successfully!`);
+    } else {
+      showToast('Failed to upload files', 'error');
+    }
   };
 
   const renderFileThumbnail = (item) => {
@@ -202,12 +216,14 @@ export default function Gallery() {
       {/* Admin upload inside folder */}
       {isAdmin && selectedFolder && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6">
-          <h3 className="font-semibold mb-2 text-sm text-gray-800">Add File / Media of Any Format to {currentFolder?.name}</h3>
+          <h3 className="font-semibold mb-2 text-sm text-gray-800">Add Files / Media of Any Format to {currentFolder?.name}</h3>
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            <input type="file" onChange={e => setUploadFile(e.target.files[0])} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 cursor-pointer" />
-            <button onClick={handleUpload} disabled={!uploadFile} className="px-5 py-2 bg-primary-600 text-white rounded-lg text-sm font-bold hover:bg-primary-700 transition disabled:opacity-50 cursor-pointer">Upload to Bucket</button>
+            <input type="file" multiple onChange={e => setUploadFiles(Array.from(e.target.files || []))} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 cursor-pointer" />
+            <button onClick={handleUpload} disabled={uploadFiles.length === 0} className="px-5 py-2 bg-primary-600 text-white rounded-lg text-sm font-bold hover:bg-primary-700 transition disabled:opacity-50 cursor-pointer">
+              Upload {uploadFiles.length > 0 ? `(${uploadFiles.length})` : ''} to Bucket
+            </button>
           </div>
-          <p className="text-xs text-gray-400 mt-2">Supports images, videos, PDFs, Word docs, Excel sheets, ZIP archives, and any file format with auto thumbnail generation.</p>
+          <p className="text-xs text-gray-400 mt-2">Supports multiple files simultaneously (images, videos, PDFs, Word docs, Excel sheets, ZIP archives, etc.).</p>
         </div>
       )}
 
@@ -236,25 +252,38 @@ export default function Gallery() {
       {/* Preview Modal */}
       {previewItem && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-fade-in">
             <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
               <h3 className="font-bold text-gray-800 truncate">{previewItem.title}</h3>
-              <button onClick={() => setPreviewItem(null)} className="text-gray-500 hover:text-gray-800 p-2 text-lg"><i className="fa-solid fa-xmark"></i></button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setZoom(z => Math.max(0.5, z - 0.25))} className="px-2.5 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer" title="Zoom Out"><i className="fa-solid fa-magnifying-glass-minus"></i></button>
+                <span className="text-xs font-bold text-gray-700 w-12 text-center">{Math.round(zoom * 100)}%</span>
+                <button onClick={() => setZoom(z => Math.min(3, z + 0.25))} className="px-2.5 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer" title="Zoom In"><i className="fa-solid fa-magnifying-glass-plus"></i></button>
+                <button onClick={() => setZoom(1)} className="px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-bold transition cursor-pointer" title="Reset Zoom"><i className="fa-solid fa-rotate-right"></i></button>
+                <button onClick={() => setPreviewItem(null)} className="text-gray-500 hover:text-gray-800 p-2 text-lg cursor-pointer ml-2"><i className="fa-solid fa-xmark"></i></button>
+              </div>
             </div>
-            <div className="p-6 flex-1 overflow-auto flex items-center justify-center bg-gray-900 min-h-[350px]">
+            <div className="p-6 flex-1 overflow-auto flex items-center justify-center bg-gray-900 min-h-[400px]">
               {previewItem.url.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) || previewItem.type === 'photo' ? (
-                <img src={previewItem.url} alt={previewItem.title} className="max-h-[70vh] object-contain rounded-lg" />
+                <img
+                  src={previewItem.url}
+                  alt={previewItem.title}
+                  style={{ transform: `scale(${zoom})`, transition: 'transform 0.2s ease' }}
+                  className="max-h-[70vh] object-contain rounded-lg"
+                />
               ) : previewItem.url.match(/\.pdf$/i) || previewItem.type === 'pdf' ? (
-                <iframe src={previewItem.url} title={previewItem.title} className="w-full h-[65vh] rounded-lg bg-white" />
+                <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top center', transition: 'transform 0.2s ease' }} className="w-full flex items-center justify-center">
+                  <iframe src={previewItem.url} title={previewItem.title} className="w-full h-[65vh] rounded-lg bg-white" />
+                </div>
               ) : (
-                <div className="text-center text-white py-12">
+                <div className="text-center text-white py-12" style={{ transform: `scale(${zoom})`, transition: 'transform 0.2s ease' }}>
                   <i className="fa-solid fa-file-arrow-down text-6xl text-primary-400 mb-4"></i>
                   <p className="text-lg font-medium mb-4">Preview available</p>
                 </div>
               )}
             </div>
             <div className="p-4 border-t border-gray-100 flex justify-end bg-gray-50 gap-3">
-              <button onClick={() => setPreviewItem(null)} className="px-5 py-2 bg-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-300 transition">Close</button>
+              <button onClick={() => setPreviewItem(null)} className="px-5 py-2 bg-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-300 transition cursor-pointer">Close</button>
             </div>
           </div>
         </div>
