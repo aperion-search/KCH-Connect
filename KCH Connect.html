@@ -652,7 +652,7 @@
             const listEl = document.getElementById('recent-absences-list'); listEl.innerHTML = '';
             document.getElementById('no-absences-msg').classList.toggle('hidden', recentAbsences.length > 0);
             recentAbsences.forEach(student => {
-                const msg = `Dear Parent,\nThis is to inform you that ${student.name} is marked ABSENT today (${formatDate(state.currentDate)}).\n\n- Madrasa Wajihiyah Khachroad`;
+                const msg = `📋 ABSENTEE NOTICE\n\nDear Parents,\n\nYour ward, ${student.name} (${student.grade || 'Class'}), was marked absent on ${state.currentDate} without prior intimation.\n\nPlease note that regular attendance and punctuality are extremely important for your child's educational progress and moral growth.\n\nKindly submit a leave request here: https://kch-connect.onrender.com/\n\nKindly ensure your child attends madrasa tomorrow with all pending work completed.\n\nRegards,\nMadrasa Wajihiyah Khachroad`;
                 const btns = student.phone ? `<div class="flex gap-2 ml-3"><a href="tel:${student.phone}" class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shadow-sm"><i class="fa-solid fa-phone text-xs"></i></a><a href="${getWaLink(student.phone, msg)}" target="_blank" class="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center shadow-sm"><i class="fa-brands fa-whatsapp"></i></a></div>` : ``;
                 listEl.innerHTML += `<li class="px-4 py-3 flex items-center justify-between hover:bg-gray-50"><div class="flex items-center"><div class="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-sm font-bold mr-3">${student.name.charAt(0)}</div><div><p class="text-sm font-medium text-gray-900">${student.name}</p><p class="text-xs text-gray-500">${student.grade || '-'}</p></div></div><div class="flex items-center"><span class="px-2 py-1 text-[10px] font-bold rounded-md bg-red-50 text-red-600 border border-red-100 hidden sm:block">ABSENT</span>${btns}</div></li>`;
             });
@@ -832,6 +832,10 @@
             }
         });
 
+    <footer class="mt-12 py-6 border-t border-gray-200 text-center text-xs text-gray-500 bg-white">
+        <p class="font-bold text-gray-700">KCH Connect — Madrasa Wajihiyah Khachroad</p>
+        <p class="mt-1 text-gray-600">Designed & Developed by <span class="font-bold text-gray-900">Burhanuddin Badnagarwala</span></p>
+    </footer>
     </script>
 </body>
 </html>

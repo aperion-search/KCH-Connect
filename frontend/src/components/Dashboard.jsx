@@ -77,9 +77,36 @@ export default function Dashboard() {
 
   // Today's attendance for current date
   const todayRecord = attendance[currentDate] || {};
-  const presentToday = Object.values(todayRecord).filter(s => s === 'Present').length;
-  const absentToday = Object.values(todayRecord).filter(s => s === 'Absent').length;
-  const leaveToday = Object.values(todayRecord).filter(s => s === 'Leave').length;
+
+  // For teachers, only count attendance for their visible (assigned class) students
+  const visibleStudentIds = new Set();
+  visibleStudents.forEach(s => {
+    if (s.id) visibleStudentIds.add(String(s.id));
+    if (s.rollId) visibleStudentIds.add(String(s.rollId));
+  });
+
+  const countStatus = (status) => {
+    if (currentUser?.role === 'admin') {
+      return Object.values(todayRecord).filter(s => s === status).length;
+    }
+    // Teacher: only count their class students
+    let count = 0;
+    for (const [id, val] of Object.entries(todayRecord)) {
+      if (val === status && visibleStudentIds.has(String(id))) count++;
+    }
+    // Deduplicate: each student counted once (they may have both id and rollId)
+    const counted = new Set();
+    visibleStudents.forEach(s => {
+      const byId = todayRecord[s.id];
+      const byRollId = todayRecord[s.rollId];
+      if (byId === status || byRollId === status) counted.add(String(s.id));
+    });
+    return counted.size;
+  };
+
+  const presentToday = countStatus('Present');
+  const absentToday = countStatus('Absent');
+  const leaveToday = countStatus('Leave');
   const todayAbsentStudents = visibleStudents.filter(s => todayRecord[s.id] === 'Absent' || todayRecord[s.rollId] === 'Absent');
   const todayLeaveStudents = visibleStudents.filter(s => {
     if (todayRecord[s.id] === 'Leave' || todayRecord[s.rollId] === 'Leave') return true;
@@ -102,13 +129,23 @@ export default function Dashboard() {
     return true;
   });
 
-  const onLeaveCount = leaves.filter(l =>
-    l.status === 'Approved' || l.status === 'Pending'
-  ).length;
+  const onLeaveCount = leaves.filter(l => {
+    if (l.status !== 'Approved' && l.status !== 'Pending') return false;
+    if (currentUser?.role === 'teacher') {
+      return visibleStudents.some(s => String(s.id) === String(l.sId) || String(s.rollId) === String(l.sId));
+    }
+    return true;
+  }).length;
 
-  // Pending leaves (admin/teacher view only)
+  // Pending leaves (admin/teacher view only — teachers see only their class)
   const pendingLeaves = currentUser?.role !== 'parent'
-    ? leaves.filter(l => l.status === 'Pending')
+    ? leaves.filter(l => {
+        if (l.status !== 'Pending') return false;
+        if (currentUser?.role === 'teacher') {
+          return visibleStudents.some(s => String(s.id) === String(l.sId) || String(s.rollId) === String(l.sId));
+        }
+        return true;
+      })
     : [];
 
   const dashboardContent = currentUser?.role !== 'parent' ? (
@@ -198,7 +235,7 @@ export default function Dashboard() {
                       <i className="fa-solid fa-phone text-sm"></i>
                     </a>
                     <a
-                      href={`https://wa.me/91${student.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`📋 ABSENTEE NOTICE\n\nDear Parents,\n\nYour ward, ${student.name} (${student.grade || 'Class'}), was marked absent on ${currentDate} without prior intimation.\n\nKindly submit a leave request here: https://kch-connect.onrender.com/\n\nKindly ensure your child attends school tomorrow with all pending work completed.\n\nRegards,\nMadrasa Wajihiyah Khachroad (Sender: +91 7737252833)`)}`}
+                      href={`https://wa.me/91${student.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`📋 ABSENTEE NOTICE\n\nDear Parents,\n\nYour ward, ${student.name} (${student.grade || 'Class'}), was marked absent on ${currentDate} without prior intimation.\n\nPlease note that regular attendance and punctuality are extremely important for your child's educational progress and moral growth.\n\nKindly submit a leave request here: https://kch-connect.onrender.com/\n\nKindly ensure your child attends madrasa tomorrow with all pending work completed.\n\nRegards,\nMadrasa Wajihiyah Khachroad`)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm transition-colors flex items-center justify-center"
@@ -399,26 +436,6 @@ export default function Dashboard() {
 
       {dashboardContent}
 
-      {/* Teacher View: Quick Stats */}
-      {currentUser?.role === 'teacher' && (
-        <div className="mt-6 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden p-6">
-          <h3 className="font-semibold text-gray-800 text-sm mb-4">Today's Summary</h3>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-green-600">{presentToday}</p>
-              <p className="text-xs text-gray-500 uppercase font-semibold mt-1">Present</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-red-600">{absentToday}</p>
-              <p className="text-xs text-gray-500 uppercase font-semibold mt-1">Absent</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-blue-600">{onLeaveCount}</p>
-              <p className="text-xs text-gray-500 uppercase font-semibold mt-1">On Leave</p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

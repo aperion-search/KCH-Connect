@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import axios from 'axios';
 
 export default function Attendance() {
-  const { students, teachers, currentUser, showToast, attendance, markAttendance: markAttendanceContext, markAllPresent: markAllPresentContext } = useApp();
+  const { students, teachers, currentUser, showToast, attendance, leaves, markAttendance: markAttendanceContext, markAllPresent: markAllPresentContext } = useApp();
   const [attendanceView, setAttendanceView] = useState('daily');
   const [selectedGrade, setSelectedGrade] = useState('All');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -87,19 +87,34 @@ export default function Attendance() {
 
   const currentDateAttendance = attendanceData[date] || {};
 
+  const getStudentStatus = (student) => {
+    const r = currentDateAttendance;
+    return r[student.id] || r[String(student.id)] || r[student.rollId] || r[String(student.rollId)] || 'Present';
+  };
+
   // Check if all filtered students are currently marked 'Present'
-  const allArePresent = filteredStudents.length > 0 && filteredStudents.every(s => currentDateAttendance[s.id] === 'Present' || currentDateAttendance[s.rollId] === 'Present');
+  const allArePresent = filteredStudents.length > 0 && filteredStudents.every(s => getStudentStatus(s) === 'Present');
 
   const handleMarkAllToggle = async () => {
     const targetStatus = allArePresent ? 'N/A' : 'Present';
     const updatedRecords = { ...(attendanceData[date] || {}) };
     filteredStudents.forEach(s => {
+      const currentStatus = getStudentStatus(s);
+      const hasLeave = leaves && leaves.some(l =>
+        l.status === 'Approved' &&
+        (String(l.sId) === String(s.id) || String(l.sId) === String(s.rollId)) &&
+        l.start <= date &&
+        l.end >= date
+      );
+      if (currentStatus === 'Leave' || hasLeave) {
+        return; // Preserve leave
+      }
       updatedRecords[s.id] = targetStatus;
       if (s.rollId) updatedRecords[s.rollId] = targetStatus;
     });
 
     await markAllPresentContext(date, updatedRecords);
-    showToast(`All filtered students marked as ${targetStatus}`);
+    showToast(`All filtered students marked as ${targetStatus} (Leaves preserved)`);
   };
 
   const handleExportExcel = () => {
@@ -235,7 +250,7 @@ export default function Attendance() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filteredStudents.map((student) => {
-                  const currentStatus = currentDateAttendance[student.id] || currentDateAttendance[student.rollId] || 'Present';
+                  const currentStatus = getStudentStatus(student);
 
                   return (
                     <tr key={student.id} className="hover:bg-gray-50/50 transition-colors">
@@ -316,7 +331,7 @@ export default function Attendance() {
                                 <i className="fa-solid fa-phone text-sm"></i>
                               </a>
                               <a
-                                href={`https://wa.me/91${student.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`📋 ABSENTEE NOTICE\n\nDear Parents,\n\nYour ward, ${student.name} (${student.grade || 'Class'}), was marked absent on ${date} without prior intimation.\n\nKindly submit a leave request here: https://kch-connect.onrender.com/\n\nKindly ensure your child attends school tomorrow with all pending work completed.\n\nRegards,\nMadrasa Wajihiyah Khachroad (Sender: +91 7737252833)`)}`}
+                                href={`https://wa.me/91${student.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`📋 ABSENTEE NOTICE\n\nDear Parents,\n\nYour ward, ${student.name} (${student.grade || 'Class'}), was marked absent on ${date} without prior intimation.\n\nPlease note that regular attendance and punctuality are extremely important for your child's educational progress and moral growth.\n\nKindly submit a leave request here: https://kch-connect.onrender.com/\n\nKindly ensure your child attends madrasa tomorrow with all pending work completed.\n\nRegards,\nMadrasa Wajihiyah Khachroad`)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm transition-colors flex items-center justify-center"
@@ -348,7 +363,7 @@ export default function Attendance() {
             <table className="w-auto text-center border-collapse text-xs">
               <thead>
                 <tr className="bg-gray-100 border-b-2 border-gray-600">
-                  <th className="p-2 border border-gray-500 sticky left-0 bg-gray-100 z-10 font-bold text-gray-900">Student</th>
+                  <th className="p-2 border border-gray-500 font-bold text-gray-900">Student</th>
                   {Array.from({length: new Date(yearMonth.split('-')[0], yearMonth.split('-')[1], 0).getDate()}, (_, i) => (
                     <th key={i+1} className="p-2 border border-gray-500 w-8 font-bold text-gray-900">{i+1}</th>
                   ))}
@@ -360,7 +375,7 @@ export default function Attendance() {
                   const daysInMonth = new Date(year, month, 0).getDate();
                   return (
                     <tr key={student.id} className="hover:bg-gray-50">
-                      <td className="p-2 border border-gray-500 text-left font-medium sticky left-0 bg-white z-10 whitespace-nowrap">
+                      <td className="p-2 border border-gray-500 text-left font-medium whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           {student.photo ? (
                             <img src={student.photo} alt={student.name} className="w-7 h-7 rounded-full object-cover" />

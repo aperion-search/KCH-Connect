@@ -19,6 +19,7 @@ export default function Management() {
   const [isEditing, setIsEditing] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const gradeOrder = { '9': 1, '8': 2, '7': 3, '6': 4, '5': 5, '4': 6, '3': 7, '2': 8, '1': 9, 'ATFAAL': 10 };
   const sortedStudents = useMemo(() => {
@@ -38,6 +39,35 @@ export default function Management() {
       return (a.name || '').localeCompare(b.name || '');
     });
   }, [students]);
+
+  const filteredStudents = useMemo(() => {
+    let list = sortedStudents;
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      list = list.filter(s =>
+        (s.name && s.name.toLowerCase().includes(term)) ||
+        (s.rollId && s.rollId.toLowerCase().includes(term)) ||
+        (s.grade && s.grade.toLowerCase().includes(term)) ||
+        (s.phone && s.phone.includes(term)) ||
+        (s.hifzStatus && s.hifzStatus.toLowerCase().includes(term))
+      );
+    }
+    return list;
+  }, [sortedStudents, searchTerm]);
+
+  const filteredTeachers = useMemo(() => {
+    let list = teachers;
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      list = list.filter(t =>
+        (t.name && t.name.toLowerCase().includes(term)) ||
+        (t.id && t.id.toLowerCase().includes(term)) ||
+        (t.assignedClasses && t.assignedClasses.some(c => String(c).toLowerCase().includes(term))) ||
+        (t.assignedClass && String(t.assignedClass).toLowerCase().includes(term))
+      );
+    }
+    return list;
+  }, [teachers, searchTerm]);
 
   // Student Management State
   const [studentForm, setStudentForm] = useState({
@@ -520,7 +550,7 @@ export default function Management() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {sortedStudents.map((student) => (
+              {filteredStudents.map((student) => (
                 <tr key={student.id} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-4 sm:px-6 py-3">
                     <div className="flex items-center gap-3">
@@ -641,7 +671,7 @@ export default function Management() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {teachers.map((teacher) => (
+              {filteredTeachers.map((teacher) => (
                 <tr key={teacher.id} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-4 sm:px-6 py-3">
                     <p className="font-medium text-gray-900 text-sm sm:text-base">{teacher.id}</p>
@@ -725,10 +755,20 @@ export default function Management() {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mb-8 overflow-hidden">
-        <div className="p-4 sm:p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+        <div className="p-4 sm:p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-50/50 gap-3">
           <h2 className="font-semibold text-gray-800 text-base capitalize">
-            {activeTab === 'students' ? 'Students Directory' : 'Teachers Directory'}
+            {activeTab === 'students' ? `Students Directory (${filteredStudents.length})` : `Teachers Directory (${filteredTeachers.length})`}
           </h2>
+          <div className="relative w-full sm:w-64">
+            <i className="fa-solid fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm"></i>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={`Search ${activeTab}...`}
+              className="pl-9 pr-4 py-1.5 border border-gray-200 rounded-lg text-sm w-full bg-white outline-none focus:ring-2 focus:ring-primary-500"
+            />
+          </div>
         </div>
         {renderTable()}
       </div>

@@ -40,14 +40,23 @@ export default function Gallery() {
 
   const handleDeleteFolder = async (id) => {
     const folder = folders.find(f => f.id === id);
-    if (folder && folder.items && folder.items.length > 0) {
-      for (const item of folder.items) {
-        if (item.url) {
-          const filename = item.url.split('/').pop();
-          try {
-            await axios.delete(`/api/upload/${filename}`);
-          } catch (e) {
-            console.error('Failed to delete media file from server/Mega:', e);
+    if (folder) {
+      if (folder.name) {
+        try {
+          await axios.delete(`/api/folder/${encodeURIComponent(folder.name)}`);
+        } catch (e) {
+          console.error('Failed to delete folder from Mega:', e);
+        }
+      }
+      if (folder.items && folder.items.length > 0) {
+        for (const item of folder.items) {
+          if (item.url) {
+            const filename = item.url.split('/').pop();
+            try {
+              await axios.delete(`/api/upload/${filename}`);
+            } catch (e) {
+              console.error('Failed to delete media file from server/Mega:', e);
+            }
           }
         }
       }
@@ -78,6 +87,7 @@ export default function Gallery() {
 
   const handleUpload = async () => {
     if (!uploadFiles || uploadFiles.length === 0 || !selectedFolder) return;
+    const folderName = currentFolder?.name || '';
     const newItems = [];
     for (const file of uploadFiles) {
       try {
@@ -90,7 +100,8 @@ export default function Gallery() {
 
         const res = await axios.post('/api/upload', {
           image: base64Url,
-          filename: file.name
+          filename: file.name,
+          folderName: folderName
         });
         const mediaUrl = res.data.url;
         const ext = file.name.split('.').pop().toLowerCase();
@@ -195,7 +206,7 @@ export default function Gallery() {
 
   return (
     <div className="animate-fade-in">
-      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">Gallery & File Bucket</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">Gallery</h1>
 
       {/* Folders bar */}
       <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-6">

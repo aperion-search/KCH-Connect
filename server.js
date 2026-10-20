@@ -1,6 +1,15 @@
 require('dotenv').config();
 const path = require('path');
 
+// Prevent server crashes on unhandled network timeouts or rejections
+process.on('unhandledRejection', (reason, promise) => {
+    console.warn('[SERVER] Handled unhandled rejection:', reason?.message || reason);
+});
+
+process.on('uncaughtException', (err) => {
+    console.warn('[SERVER] Handled uncaught exception:', err?.message || err);
+});
+
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
@@ -8,7 +17,7 @@ const nodemailer = require('nodemailer');
 const { exec } = require('child_process');
 const util = require('util');
 const execAsync = util.promisify(exec);
-const { syncData, loadDataFromMega, syncMediaToMega, deleteMediaFromMega, createMegaFolder, loadMediaFromMega } = require('./sync');
+const { syncData, loadDataFromMega, syncMediaToMega, deleteMediaFromMega, deleteFolderFromMega, createMegaFolder, loadMediaFromMega } = require('./sync');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -449,7 +458,7 @@ app.delete('/api/leaves/:id', (req, res) => {
 // --- Media Upload Route ---
 app.post('/api/upload', async (req, res) => {
     try {
-        const { image, filename } = req.body;
+        const { image, filename, folderName } = req.body;
         if (!image) {
             return res.status(400).json({ error: 'No image data provided.' });
         }
@@ -463,8 +472,8 @@ app.post('/api/upload', async (req, res) => {
         const filePath = path.join(UPLOAD_DIR, uniqueName);
         fs.writeFileSync(filePath, buffer);
 
-        // Also sync media file to Mega cloud storage asynchronously
-        syncMediaToMega(uniqueName, buffer);
+        // Sync media file to Mega cloud storage (inside event folder if provided)
+        syncMediaToMega(uniqueName, buffer, folderName || null);
 
         res.json({ success: true, url: `/uploads/${uniqueName}` });
     } catch (e) {
@@ -486,6 +495,18 @@ app.delete('/api/upload/:filename', async (req, res) => {
     } catch (e) {
         console.error('Delete media error:', e);
         res.status(500).json({ error: 'Failed to delete media file.' });
+    }
+});
+
+// --- Folder Delete Route ---
+app.delete('/api/folder/:folderName', async (req, res) => {
+    try {
+        const folderName = decodeURIComponent(req.params.folderName);
+        await deleteFolderFromMega(folderName);
+        res.json({ success: true, message: `Folder ${folderName} deleted from Mega.` });
+    } catch (e) {
+        console.error('Delete folder error:', e);
+        res.status(500).json({ error: 'Failed to delete folder.' });
     }
 });
 
@@ -603,18 +624,23 @@ async function startServer() {
         }
     });
 
-    const types = ['students', 'teachers', 'attendance', 'leaves', 'gallery', 'announcements'];
-    for (const type of types) {
-        try {
-            const filePath = path.join(DATA_DIR, `${type}.json`);
-            const megaData = await loadDataFromMega(type);
-            if (megaData !== null) {
-                writeJSON(filePath, megaData);
-                console.log(`[INIT] Initialized ${type}.json from Mega cloud storage.`);
+    // Background Mega sync — never crash server if offline
+    try {
+        const types = ['students', 'teachers', 'attendance', 'leaves', 'gallery', 'announcements'];
+        for (const type of types) {
+            try {
+                const filePath = path.join(DATA_DIR, `${type}.json`);
+                const megaData = await loadDataFromMega(type);
+                if (megaData !== null) {
+                    writeJSON(filePath, megaData);
+                    console.log(`[INIT] Initialized ${type}.json from Mega cloud storage.`);
+                }
+            } catch (e) {
+                console.error(`[INIT] Skipping ${type} Mega sync (offline or error): ${e.message}`);
             }
-        } catch (e) {
-            console.error(`[INIT] Error syncing ${type} from Mega:`, e.message);
         }
+    } catch (e) {
+        console.warn(`[INIT] Mega background sync failed (offline?): ${e.message}`);
     }
 }
 

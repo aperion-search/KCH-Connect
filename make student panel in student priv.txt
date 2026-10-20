@@ -1,3 +1,0 @@
- make student panel in student privilegde and type only dont merge student and teacher panel and by clicking on
-  mnagement tab in admin the page becomes blank and dont make seperate profile tab directly show on dasboard and check
-  all and add leave button in admin attendence panel and if

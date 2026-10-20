@@ -90,21 +90,29 @@ export default function App() {
           </header>
 
           {/* Content Area */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-8 w-full max-w-6xl mx-auto pb-24 sm:pb-8">
-            {loading ? (
-              <div className="flex items-center justify-center h-full">
-                <i className="fa-solid fa-spinner fa-spin text-4xl text-primary-600"></i>
-              </div>
-            ) : (
-              <>
-                {activeTab === 'dashboard' && <Dashboard />}
-                {activeTab === 'attendance' && <Attendance />}
-                {activeTab === 'leaves' && <Leaves />}
-                {activeTab === 'announcements' && <Announcements />}
-                {activeTab === 'management' && <Management />}
-                {activeTab === 'gallery' && <Gallery />}
-              </>
-            )}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-8 w-full max-w-6xl mx-auto pb-24 sm:pb-8 flex flex-col justify-between">
+            <div className="flex-1">
+              {loading ? (
+                <div className="flex items-center justify-center h-full">
+                  <i className="fa-solid fa-spinner fa-spin text-4xl text-primary-600"></i>
+                </div>
+              ) : (
+                <>
+                  {activeTab === 'dashboard' && <Dashboard />}
+                  {activeTab === 'attendance' && <Attendance />}
+                  {activeTab === 'leaves' && <Leaves />}
+                  {activeTab === 'announcements' && <Announcements />}
+                  {activeTab === 'management' && <Management />}
+                  {activeTab === 'gallery' && <Gallery />}
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            <footer className="mt-12 pt-6 border-t border-gray-200 text-center text-xs text-gray-500 pb-16 sm:pb-2">
+              <p className="font-bold text-gray-700">KCH Connect — Madrasa Wajihiyah Khachroad</p>
+              <p className="mt-1 text-gray-600">Designed & Powered by - <span className="font-bold text-gray-900">Burhanuddin Badnagarwala</span></p>
+            </footer>
           </div>
         </main>
       </div>

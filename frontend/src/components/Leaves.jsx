@@ -243,7 +243,7 @@ export default function Leaves() {
                       <span className="text-sm text-gray-500">
                         Status: {getStatusBadge(leave.status)}
                       </span>
-                      {userRole === 'admin' && (
+                      {(userRole === 'admin' || userRole === 'teacher') && (
                         <div className="flex gap-2 items-center flex-wrap">
                           {leave.status !== 'Approved' && (
                             <button
