@@ -742,8 +742,8 @@ export default function Management() {
 
       {/* Student Details Popup Modal */}
       {selectedStudentForDetails && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-fade-in p-6">
+        <div className="fixed inset-x-0 top-16 z-50 bg-black/60 backdrop-blur-xs flex items-start justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto shadow-2xl animate-fade-in p-6 border border-gray-200">
             <div className="flex justify-between items-center pb-4 border-b border-gray-100 mb-4">
               <h3 className="text-xl font-bold text-gray-900">Student Full Details</h3>
               <button onClick={() => setSelectedStudentForDetails(null)} className="text-gray-400 hover:text-gray-700 p-2 text-lg"><i className="fa-solid fa-xmark"></i></button>
@@ -780,8 +780,8 @@ export default function Management() {
 
       {/* Student/Teacher Edit Modal Popup */}
       {isModalEditOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-fade-in p-6">
+        <div className="fixed inset-x-0 top-16 z-50 bg-black/60 backdrop-blur-xs flex items-start justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto shadow-2xl animate-fade-in p-6 border border-gray-200">
             <div className="flex justify-between items-center pb-4 border-b border-gray-100 mb-4">
               <h3 className="text-xl font-bold text-gray-900">Edit {activeTab === 'students' ? 'Student' : 'Teacher'}</h3>
               <button onClick={() => resetStudentForm()} className="text-gray-400 hover:text-gray-700 p-2 text-lg"><i className="fa-solid fa-xmark"></i></button>

@@ -38,12 +38,25 @@ export default function Gallery() {
     showToast('Folder created');
   };
 
-  const handleDeleteFolder = (id) => {
+  const handleDeleteFolder = async (id) => {
+    const folder = folders.find(f => f.id === id);
+    if (folder && folder.items && folder.items.length > 0) {
+      for (const item of folder.items) {
+        if (item.url) {
+          const filename = item.url.split('/').pop();
+          try {
+            await axios.delete(`/api/upload/${filename}`);
+          } catch (e) {
+            console.error('Failed to delete media file from server/Mega:', e);
+          }
+        }
+      }
+    }
     const updated = folders.filter(f => f.id !== id);
     setFolders(updated);
     saveGallery(updated);
     if (selectedFolder === id) setSelectedFolder(updated[0]?.id || null);
-    showToast('Folder removed');
+    showToast('Folder and its media removed');
   };
 
   const handleDeleteItem = async (folderId, itemId) => {
@@ -251,8 +264,8 @@ export default function Gallery() {
 
       {/* Preview Modal */}
       {previewItem && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-fade-in">
+        <div className="fixed inset-x-0 top-16 z-50 flex items-start justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[85vh] overflow-hidden flex flex-col shadow-2xl animate-fade-in border border-gray-200">
             <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
               <h3 className="font-bold text-gray-800 truncate">{previewItem.title}</h3>
               <div className="flex items-center gap-2">

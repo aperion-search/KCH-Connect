@@ -8,7 +8,7 @@ const nodemailer = require('nodemailer');
 const { exec } = require('child_process');
 const util = require('util');
 const execAsync = util.promisify(exec);
-const { syncData, loadDataFromMega, syncMediaToMega, deleteMediaFromMega, createMegaFolder } = require('./sync');
+const { syncData, loadDataFromMega, syncMediaToMega, deleteMediaFromMega, createMegaFolder, loadMediaFromMega } = require('./sync');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -19,6 +19,28 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Serve static frontend in production (if built)
 app.use(express.static(path.join(__dirname, 'frontend', 'dist')));
+
+// --- Serve Uploads with Mega Cloud Fallback ---
+app.get('/uploads/:filename', async (req, res, next) => {
+    const { filename } = req.params;
+    const filePath = path.join(UPLOAD_DIR, filename);
+    if (fs.existsSync(filePath)) {
+        return res.sendFile(filePath);
+    }
+    try {
+        console.log(`[MEDIA FALLBACK] Local file ${filename} missing. Fetching from Mega...`);
+        const mediaBuffer = await loadMediaFromMega(filename);
+        if (mediaBuffer) {
+            fs.writeFileSync(filePath, mediaBuffer);
+            console.log(`[MEDIA FALLBACK] Successfully restored ${filename} from Mega.`);
+            return res.sendFile(filePath);
+        }
+    } catch (e) {
+        console.error(`[MEDIA FALLBACK] Error loading ${filename} from Mega:`, e.message);
+    }
+    res.status(404).json({ error: 'Media file not found locally or on cloud storage.' });
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(__dirname));
 
@@ -258,30 +280,8 @@ async function sendAbsentEmail(student, date) {
 
 // --- WhatsApp Automated Alerts Setup ---
 let client = null;
-try {
-    const { Client, LocalAuth } = require('whatsapp-web.js');
-    const qrcode = require('qrcode-terminal');
-    client = new Client({
-        authStrategy: new LocalAuth(),
-        puppeteer: {
-            headless: true,
-            executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
-        }
-    });
-    client.on('qr', (qr) => {
-        console.log('[WhatsApp] QR RECEIVED, scan please:');
-        qrcode.generate(qr, { small: true });
-    });
-    client.on('ready', () => {
-        console.log('[WhatsApp] Client is ready!');
-    });
-    client.initialize().catch(err => {
-        console.log('[WhatsApp] Initialization skipped or failed:', err.message);
-    });
-} catch (e) {
-    console.log('[WhatsApp] whatsapp-web.js not active:', e.message);
-}
+// WhatsApp initialization commented out to keep terminal clean
+
 
 // Email transporter configuration (kchmwajihiyah@gmail.com)
 const emailTransporter = nodemailer.createTransport({
@@ -474,14 +474,14 @@ app.post('/api/upload', async (req, res) => {
 });
 
 // --- Media Delete Route ---
-app.delete('/api/upload/:filename', (req, res) => {
+app.delete('/api/upload/:filename', async (req, res) => {
     try {
         const { filename } = req.params;
         const filePath = path.join(UPLOAD_DIR, filename);
         if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);
         }
-        deleteMediaFromMega(filename);
+        await deleteMediaFromMega(filename);
         res.json({ success: true, message: 'Media deleted from local and Mega.' });
     } catch (e) {
         console.error('Delete media error:', e);

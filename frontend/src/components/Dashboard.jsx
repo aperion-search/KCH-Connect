@@ -80,8 +80,27 @@ export default function Dashboard() {
   const presentToday = Object.values(todayRecord).filter(s => s === 'Present').length;
   const absentToday = Object.values(todayRecord).filter(s => s === 'Absent').length;
   const leaveToday = Object.values(todayRecord).filter(s => s === 'Leave').length;
-  const todayAbsentStudents = visibleStudents.filter(s => todayRecord[s.id] === 'Absent');
-  const todayLeaveStudents = visibleStudents.filter(s => todayRecord[s.id] === 'Leave');
+  const todayAbsentStudents = visibleStudents.filter(s => todayRecord[s.id] === 'Absent' || todayRecord[s.rollId] === 'Absent');
+  const todayLeaveStudents = visibleStudents.filter(s => {
+    if (todayRecord[s.id] === 'Leave' || todayRecord[s.rollId] === 'Leave') return true;
+    return leaves.some(l =>
+      l.status === 'Approved' &&
+      (String(l.sId) === String(s.id) || String(l.sId) === String(s.rollId)) &&
+      l.start <= currentDate &&
+      l.end >= currentDate
+    );
+  });
+
+  const upcomingLeaves = leaves.filter(l => {
+    if (l.status !== 'Approved' && l.status !== 'Pending') return false;
+    if (l.end < currentDate) return false;
+    if (currentUser?.role === 'teacher') {
+      const student = students.find(s => String(s.id) === String(l.sId) || String(s.rollId) === String(l.sId));
+      if (!student) return false;
+      return visibleStudents.some(vs => String(vs.id) === String(student.id) || String(vs.rollId) === String(student.rollId));
+    }
+    return true;
+  });
 
   const onLeaveCount = leaves.filter(l =>
     l.status === 'Approved' || l.status === 'Pending'
@@ -102,7 +121,7 @@ export default function Dashboard() {
           </div>
           <div>
             <h3 className="text-gray-500 text-xs font-medium">Students</h3>
-            <p className="text-xl font-bold text-gray-900">{visibleStudents.length}</p>
+            <p className="text-xl font-bold text-gray-900">{currentUser?.role === 'admin' ? students.length : visibleStudents.length}</p>
           </div>
         </div>
 
@@ -221,6 +240,41 @@ export default function Dashboard() {
           ) : (
             <li className="px-6 py-8 text-center text-gray-500 text-sm">
               No students on leave today.
+            </li>
+          )}
+        </ul>
+      </div>
+
+      {/* Upcoming & Active Leaves */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+        <div className="px-6 py-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
+          <h2 className="font-semibold text-gray-800 text-sm sm:text-base">
+            <i className="fa-solid fa-calendar-days mr-2 text-indigo-500"></i>
+            Upcoming & Active Leaves
+          </h2>
+        </div>
+        <ul className="divide-y divide-gray-50">
+          {upcomingLeaves.length > 0 ? (
+            upcomingLeaves.map(leave => {
+              const student = students.find(s => String(s.id) === String(leave.sId) || String(s.rollId) === String(leave.sId));
+              return (
+                <li key={leave.id} className="px-6 py-4 flex justify-between items-center hover:bg-gray-50/50">
+                  <div>
+                    <p className="font-medium text-gray-900">{student?.name || leave.sId}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Class {student?.grade || '-'} • From {leave.start} to {leave.end} ({leave.type})
+                    </p>
+                    <p className="text-xs text-gray-600 italic mt-1">Reason: {leave.reason || 'No reason provided'}</p>
+                  </div>
+                  <span className={`px-2.5 py-1 text-xs font-bold rounded-lg ${leave.status === 'Approved' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                    {leave.status}
+                  </span>
+                </li>
+              );
+            })
+          ) : (
+            <li className="px-6 py-8 text-center text-gray-500 text-sm">
+              No upcoming leaves.
             </li>
           )}
         </ul>

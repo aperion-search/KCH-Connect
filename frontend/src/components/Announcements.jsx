@@ -317,8 +317,8 @@ export default function Announcements() {
 
       {/* Preview Modal */}
       {previewItem && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-fade-in">
+        <div className="fixed inset-x-0 top-16 z-50 flex items-start justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[85vh] overflow-hidden flex flex-col shadow-2xl animate-fade-in border border-gray-200">
             <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
               <h3 className="font-bold text-gray-800 truncate">{previewItem.title || 'Preview'}</h3>
               <div className="flex items-center gap-2">

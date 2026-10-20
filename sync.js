@@ -8,26 +8,63 @@ function hasValidMegaCredentials() {
     return true;
 }
 
+// Helper to retry Mega operations on transient congestion (EAGAIN, timeouts, etc.)
+async function withMegaRetry(fn, retries = 3, delay = 2000) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await fn();
+        } catch (e) {
+            if (i === retries - 1) throw e;
+            console.warn(`[SYNC - Mega] Transient error (${e.message}), retrying in ${delay}ms... (${i + 1}/${retries})`);
+            await new Promise(r => setTimeout(r, delay));
+            delay *= 2;
+        }
+    }
+}
+
 // Helper to initialize and wait for storage ready
 async function getMegaStorage() {
-    const megaEmail = process.env.MEGA_EMAIL;
-    const megaPassword = process.env.MEGA_PASSWORD;
-    const storage = new Storage({ email: megaEmail, password: megaPassword });
-    storage.on('error', () => {
-        // Suppress storage error events
-    });
+    return withMegaRetry(async () => {
+        const megaEmail = process.env.MEGA_EMAIL;
+        const megaPassword = process.env.MEGA_PASSWORD;
+        const storage = new Storage({ email: megaEmail, password: megaPassword });
+        storage.on('error', () => {
+            // Suppress storage error events
+        });
 
-    await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('Mega connection timeout')), 15000);
-        storage.on('ready', () => { clearTimeout(timeout); resolve(); });
-        storage.on('error', (err) => { clearTimeout(timeout); reject(err); });
+        await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('Mega connection timeout')), 15000);
+            storage.on('ready', () => { clearTimeout(timeout); resolve(); });
+            storage.on('error', (err) => { clearTimeout(timeout); reject(err); });
+        });
+        return storage;
     });
-    return storage;
 }
 
 function getFilesArray(storage) {
     const rawFiles = storage.files || (storage.root && storage.root.children) || [];
     return Array.isArray(rawFiles) ? rawFiles : Object.values(rawFiles);
+}
+
+function getAllStorageFiles(storage) {
+    const allFiles = [];
+    function traverse(item) {
+        if (!item) return;
+        if (item.directory) {
+            const children = item.children || item.files || [];
+            const childArray = Array.isArray(children) ? children : Object.values(children);
+            for (const child of childArray) {
+                traverse(child);
+            }
+        } else {
+            allFiles.push(item);
+        }
+    }
+    const rootFiles = getFilesArray(storage);
+    for (const f of rootFiles) {
+        traverse(f);
+    }
+    return allFiles;
 }
 
 async function syncData(type, data) {
@@ -50,8 +87,9 @@ async function syncData(type, data) {
         const fileContent = JSON.stringify(data, null, 2);
         const buffer = Buffer.from(fileContent, 'utf8');
 
-        // Delete existing file with same name if present in storage
-        const existingFiles = getFilesArray(storage).filter(f => !f.directory && f.name === fileName);
+        // Delete existing files with same name across entire storage to prevent duplicates
+        const allFiles = getAllStorageFiles(storage);
+        const existingFiles = allFiles.filter(f => !f.directory && f.name === fileName);
         for (const file of existingFiles) {
             await new Promise((resolve) => file.delete(() => resolve()));
         }
@@ -72,8 +110,8 @@ async function loadDataFromMega(type) {
     if (!hasValidMegaCredentials()) return null;
     try {
         const storage = await getMegaStorage();
-        const filesArray = getFilesArray(storage);
-        const targetFile = filesArray.find(f => !f.directory && f.name === `${type}.json`);
+        const allFiles = getAllStorageFiles(storage);
+        const targetFile = allFiles.find(f => !f.directory && f.name === `${type}.json`);
         if (!targetFile) return null;
 
         const dataBuffer = await new Promise((resolve, reject) => {
@@ -110,8 +148,9 @@ async function syncMediaToMega(filename, buffer) {
             });
         }
 
-        // Delete existing media file with same filename anywhere in storage
-        const existingFiles = getFilesArray(storage).filter(f => !f.directory && f.name === filename);
+        // Delete existing media files with same filename across entire storage to prevent duplicates
+        const allFiles = getAllStorageFiles(storage);
+        const existingFiles = allFiles.filter(f => !f.directory && f.name === filename);
         for (const file of existingFiles) {
             await new Promise((resolve) => file.delete(() => resolve()));
         }
@@ -132,14 +171,42 @@ async function deleteMediaFromMega(filename) {
     if (!hasValidMegaCredentials()) return;
     try {
         const storage = await getMegaStorage();
-        const filesArray = getFilesArray(storage);
-        const existingFiles = filesArray.filter(f => !f.directory && f.name === filename);
+        const allFiles = getAllStorageFiles(storage);
+        const existingFiles = allFiles.filter(f => !f.directory && f.name === filename);
         for (const file of existingFiles) {
-            await new Promise((resolve) => file.delete(() => resolve()));
+            await new Promise((resolve, reject) => {
+                file.delete(err => {
+                    if (err) reject(err);
+                    else resolve();
+                });
+            });
             console.log(`[SYNC - Mega] Successfully deleted media ${filename} from Mega.`);
         }
     } catch (e) {
         console.error(`[SYNC - Mega] Media delete error:`, e.message);
+    }
+}
+
+async function loadMediaFromMega(filename) {
+    if (!hasValidMegaCredentials()) return null;
+    try {
+        const storage = await getMegaStorage();
+        const allFiles = getAllStorageFiles(storage);
+        const targetFile = allFiles.find(f => !f.directory && f.name === filename);
+        if (!targetFile) return null;
+
+        const dataBuffer = await new Promise((resolve, reject) => {
+            targetFile.download((err, data) => {
+                if (err) reject(err);
+                else resolve(data);
+            });
+        }).catch(err => {
+            return null;
+        });
+        return dataBuffer;
+    } catch (e) {
+        console.error(`[SYNC - Mega] Error loading media ${filename} from Mega:`, e.message);
+        return null;
     }
 }
 
@@ -174,4 +241,4 @@ async function createMegaFolder(folderName) {
     }
 }
 
-module.exports = { syncData, loadDataFromMega, syncMediaToMega, deleteMediaFromMega, createMegaFolder };
+module.exports = { syncData, loadDataFromMega, syncMediaToMega, deleteMediaFromMega, createMegaFolder, loadMediaFromMega };

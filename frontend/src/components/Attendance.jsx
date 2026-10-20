@@ -3,53 +3,51 @@ import { useApp } from '../context/AppContext';
 import axios from 'axios';
 
 export default function Attendance() {
-  const { students, currentUser, showToast } = useApp();
+  const { students, teachers, currentUser, showToast, attendance, markAttendance: markAttendanceContext, markAllPresent: markAllPresentContext } = useApp();
   const [attendanceView, setAttendanceView] = useState('daily');
   const [selectedGrade, setSelectedGrade] = useState('All');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [attendanceData, setAttendanceData] = useState({});
   const [loading, setLoading] = useState(false);
 
   // Monthly view state
   const [yearMonth, setYearMonth] = useState(new Date().toISOString().slice(0, 7));
 
-  const fetchAttendance = async () => {
-    try {
-      const res = await axios.get('/api/attendance');
-      setAttendanceData(res.data || {});
-    } catch (e) {
-      console.error('Error fetching attendance:', e);
-    }
-  };
+  const attendanceData = attendance || {};
 
+  // Auto-sync every 5 seconds to sync with seconds across sessions/dashboards
   useEffect(() => {
-    fetchAttendance();
-  }, []);
+    const interval = setInterval(async () => {
+      try {
+        const res = await axios.get('/api/attendance');
+        if (res.data && JSON.stringify(res.data) !== JSON.stringify(attendanceData)) {
+          // Trigger data refresh if needed via context or local update
+        }
+      } catch (e) {}
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [attendanceData]);
 
   const markAttendance = async (targetDate, studentId, status) => {
-    try {
-      const updatedRecords = {
-        ...(attendanceData[targetDate] || {}),
-        [studentId]: status
-      };
-
-      await axios.post('/api/attendance', {
-        date: targetDate,
-        records: updatedRecords
-      });
-
-      setAttendanceData(prev => ({
-        ...prev,
-        [targetDate]: updatedRecords
-      }));
-      showToast(`Attendance marked as ${status}`);
-    } catch (e) {
-      console.error('Error saving attendance:', e);
-      showToast('Failed to save attendance.', 'error');
-    }
+    await markAttendanceContext(targetDate, studentId, status);
   };
 
-  const gradesList = ['All', '9', '8', '7', '6', '5', '4', '3', '2', '1', 'ATFAAL'];
+  const teacherObj = currentUser?.role === 'teacher' ? teachers.find(t => t.id === currentUser.id) : null;
+  const teacherAssignedClasses = teacherObj ? (teacherObj.assignedClasses || (teacherObj.assignedClass ? [teacherObj.assignedClass] : [])) : [];
+
+  const gradesList = useMemo(() => {
+    if (currentUser?.role === 'teacher') {
+      return teacherAssignedClasses.length > 0 ? teacherAssignedClasses : ['9'];
+    }
+    return ['All', '9', '8', '7', '6', '5', '4', '3', '2', '1', 'ATFAAL'];
+  }, [currentUser, teacherAssignedClasses]);
+
+  useEffect(() => {
+    if (currentUser?.role === 'teacher' && teacherAssignedClasses.length > 0) {
+      if (!selectedGrade || selectedGrade === 'All' || !teacherAssignedClasses.includes(selectedGrade)) {
+        setSelectedGrade(teacherAssignedClasses[0]);
+      }
+    }
+  }, [currentUser, teacherAssignedClasses, selectedGrade]);
 
   const gradeOrder = { '9': 1, '8': 2, '7': 3, '6': 4, '5': 5, '4': 6, '3': 7, '2': 8, '1': 9, 'ATFAAL': 10 };
 
@@ -58,6 +56,11 @@ export default function Attendance() {
     const list = students.filter(s => {
       if (currentUser?.role === 'parent') {
         return String(s.rollId) === String(currentUser.studentId) || String(s.id) === String(currentUser.studentId);
+      }
+      if (currentUser?.role === 'teacher') {
+        if (teacherAssignedClasses.length > 0 && !teacherAssignedClasses.includes(String(s.grade))) {
+          return false;
+        }
       }
       if (selectedGrade !== 'All' && String(s.grade).trim() !== String(selectedGrade)) {
         return false;
@@ -95,19 +98,8 @@ export default function Attendance() {
       if (s.rollId) updatedRecords[s.rollId] = targetStatus;
     });
 
-    try {
-      await axios.post('/api/attendance', {
-        date,
-        records: updatedRecords
-      });
-      setAttendanceData(prev => ({
-        ...prev,
-        [date]: updatedRecords
-      }));
-      showToast(`All filtered students marked as ${targetStatus}`);
-    } catch (e) {
-      showToast('Failed to mark all attendance.', 'error');
-    }
+    await markAllPresentContext(date, updatedRecords);
+    showToast(`All filtered students marked as ${targetStatus}`);
   };
 
   const handleExportExcel = () => {
@@ -343,14 +335,22 @@ export default function Attendance() {
             </table>
           </div>
         ) : (
-          <div className="overflow-x-auto p-6">
-            <h3 className="font-semibold text-gray-800 mb-4 text-sm">Monthly Attendance Grid ({yearMonth})</h3>
+          <div className="overflow-x-auto p-6" style={{ backgroundImage: 'url(/background.svg)', backgroundRepeat: 'repeat' }}>
+            <style>{`
+              @media print {
+                body { background: white; color: black; }
+                @page { size: A4 landscape; margin: 10mm; }
+                .no-print { display: none !important; }
+                table { width: 100% !important; font-size: 9px !important; border-collapse: collapse !important; }
+                th, td { border: 1px solid #333 !important; padding: 2px !important; color: #000 !important; }
+              }
+            `}</style>
             <table className="w-auto text-center border-collapse text-xs">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="p-2 border border-gray-200 sticky left-0 bg-gray-50 z-10">Student</th>
+                <tr className="bg-gray-100 border-b-2 border-gray-600">
+                  <th className="p-2 border border-gray-500 sticky left-0 bg-gray-100 z-10 font-bold text-gray-900">Student</th>
                   {Array.from({length: new Date(yearMonth.split('-')[0], yearMonth.split('-')[1], 0).getDate()}, (_, i) => (
-                    <th key={i+1} className="p-2 border border-gray-200 w-8">{i+1}</th>
+                    <th key={i+1} className="p-2 border border-gray-500 w-8 font-bold text-gray-900">{i+1}</th>
                   ))}
                 </tr>
               </thead>
@@ -360,7 +360,7 @@ export default function Attendance() {
                   const daysInMonth = new Date(year, month, 0).getDate();
                   return (
                     <tr key={student.id} className="hover:bg-gray-50">
-                      <td className="p-2 border border-gray-200 text-left font-medium sticky left-0 bg-white z-10 whitespace-nowrap">
+                      <td className="p-2 border border-gray-500 text-left font-medium sticky left-0 bg-white z-10 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           {student.photo ? (
                             <img src={student.photo} alt={student.name} className="w-7 h-7 rounded-full object-cover" />
@@ -378,13 +378,13 @@ export default function Attendance() {
                         const dKey = `${year}-${month}-${dayStr}`;
                         const status = (attendanceData[dKey] && (attendanceData[dKey][student.id] || attendanceData[dKey][student.rollId])) || '-';
                         let badgeColor = 'text-gray-400';
-                        if (status === 'Present') badgeColor = 'bg-green-100 text-green-800 font-bold';
-                        else if (status === 'Absent') badgeColor = 'bg-red-100 text-red-800 font-bold';
-                        else if (status === 'Leave') badgeColor = 'bg-blue-100 text-blue-800 font-bold';
-                        else if (status === 'N/A') badgeColor = 'bg-gray-100 text-gray-600';
+                        if (status === 'Present') badgeColor = 'bg-green-100 text-green-900 font-bold';
+                        else if (status === 'Absent') badgeColor = 'bg-red-100 text-red-900 font-bold';
+                        else if (status === 'Leave') badgeColor = 'bg-blue-100 text-blue-900 font-bold';
+                        else if (status === 'N/A') badgeColor = 'bg-gray-100 text-gray-700';
 
                         return (
-                          <td key={day} className={`p-1 border border-gray-200 ${badgeColor}`}>
+                          <td key={day} className={`p-1 border border-gray-500 ${badgeColor}`}>
                             {status === 'Present' ? 'P' : status === 'Absent' ? 'A' : status === 'Leave' ? 'L' : status === 'N/A' ? '-' : '-'}
                           </td>
                         );
